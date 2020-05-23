@@ -1,0 +1,5 @@
+{
+    "homes": "array of locations",
+    "back": "array of locations",
+    "lastlocations": "array of locations"
+}

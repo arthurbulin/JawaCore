@@ -1,0 +1,56 @@
+Thing done in this update:
+ - finish chat updates (JawaChat)
+ - upgrade pm chatting (JawaChat)
+ - ban data commands (JawaPermissions)
+ - correct malformed JSONObject for rank-data (JawaCore)
+ - fixed teleport drop throughs (jawacommands, jawatoolbox (void death protection)
+ - add rank descriptions (JawaPermissions)
+ - alt data commands (JawaPermissions - basic functionality)
+ - freeze command
+
+Things to finish in this build:
+ - try to fix sleep plugin
+	- allow a player to get sleep to stop phantoms
+ - better descriptions and usages
+ - migrate all commands to command handler registration
+ - config options for chat fixes and new commands, nothing more, that will come later
+
+Stretch
+ - fucking kit command
+ - safe teleporting in general
+
+Next build?
+ - alt data commands (Auto search, minecraft name, historical ips, etc)
+ - private chat channels?
+ - /rules command and /accept command?
+ - add tab complete on rank command?
+ - add tab complete handling for all jawa plugin commands?
+ - private chat channels?
+ - automated alt checking capability when staff is online
+ - @player in chat to trigger a sound transmit to player
+ - @staff for players
+ - @<rank> for staff
+ - local weather and time
+ - survival fly command
+ - mute command
+ - report gamemode 
+ - Add config options for autounban
+ - migrate all instances of org.bukkit.chatcolor to net.md_5.bungee.api.ChatColor
+ - transmit commands list to players upon data load (I think i got, idk if it really works)
+
+
+distant build:
+ - JawaBot/XaiBot for user reporting
+ - mail
+ - /ignore <player> command?
+ - adding permissions from in-gamge
+ - adding ranks from in game
+ - allow staff notes on players? (book interface or chat print?)
+ - staff conversation interface to ignore chat when admining (@staff exceptions)
+ - internal api for spigot calls?
+	- settup classes that just map a jawa function to a spigot function, so if spigot updates a function only needs to be called inside the jawa function and corrected there
+ - fixing the ban mapping so that i don't need 10k+ mappings
+ - fixing home mapping so that i don't need 10k+ mappings
+ - adding special parameters for command blocks
+ - rank based motd messages
+ - minecraft account name history

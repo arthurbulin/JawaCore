@@ -1,0 +1,4 @@
+servername: main
+eshost: localhost
+esport: 9200
+debug: false
