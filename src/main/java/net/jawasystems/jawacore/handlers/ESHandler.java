@@ -6,19 +6,20 @@
 package net.jawasystems.jawacore.handlers;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.jawasystems.jawacore.JawaCore;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.jawasystems.jawacore.utils.ESRequestBuilder;
-import org.bukkit.Bukkit;
+import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -49,26 +51,56 @@ import org.json.JSONObject;
  * @author Arthur Bulin
  */
 public class ESHandler {
+    private static final Logger LOGGER = Logger.getLogger("ESHandler");
 
     private static RestHighLevelClient restClient;
+    private static String eshost;
+    private static int esport;
 
     private final static String handlerSlug = "[ESHandler] ";
-    private static final boolean notInES = false;
-    private static boolean debug;
+    private static boolean esDebug;
     private final static String REDMESSAGEPLUG = ChatColor.RED + "> ";
     private final static String GREENMESSAGEPLUG = ChatColor.GREEN + "> ";
 
-    /**
-     * * Public constructor for the Elasticsearch Database handler.This object
-     * handles all calls to the database.
-     *
-     * @param restClient
-     * @param config
+    /** Initialize the RestHighLevelClient and validate that it can communicate with
+     * the ElasticSearch Database. Returns this state and sets the debug value
+     * for ESDB operations.
+     * @param host
+     * @param port
+     * @param debug
+     * @return 
      */
-    public ESHandler(RestHighLevelClient restClient, Configuration config) {
-        Logger.getLogger(JawaCore.class.getName()).log(Level.INFO, "Constructing the ElasticSearch Database communications handler (ESHandler)");
-        ESHandler.restClient = restClient;
-        ESHandler.debug = config.getBoolean("debug", false);
+    public static boolean startESHandler(String host, int port, boolean debug) {
+        eshost = host;
+        esport = port;
+        
+        LOGGER.log(Level.INFO, "Starting the ElasticSearch Database rest client on {0}:{1}.", new Object[]{eshost,esport});
+        
+        //TODO add credentials handling
+        restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
+                .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
+                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)));
+        boolean restPing = false;
+        try {
+            restPing = restClient.ping(RequestOptions.DEFAULT);
+            //LOGGER.log(Level.INFO, "debug: {0}, eshost: {1}, esport: {2}", new Object[]{debug, eshost, esport});
+            LOGGER.log(Level.INFO, "ElasticSearch database pings: {0}", restPing);
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+        }
+        
+        //Logger.getLogger(JawaCore.class.getName()).log(Level.INFO, "Constructing the ElasticSearch Database communications handler (ESHandler)");
+        esDebug = debug;
+        
+        return restPing;
+    }
+    
+    public static void shutdown(){
+        try {
+            restClient.close();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+        }
     }
 
     /**
@@ -111,7 +143,8 @@ public class ESHandler {
         restClient.indexAsync(indexRequest, RequestOptions.DEFAULT, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                System.out.println(JawaCore.pluginSlug + handlerSlug + playerData.get("name") + " has been indexed successfully.");
+                LOGGER.log(Level.INFO,"{0}:{1} has been indexed successfully.", new Object[]{playerData.getString("name"),target.toString()});
+                //System.out.println(JawaCore.pluginSlug + handlerSlug + playerData.get("name") + " has been indexed successfully.");
             }
 
             @Override
@@ -129,13 +162,14 @@ public class ESHandler {
         restClient.updateAsync(updateRequest, RequestOptions.DEFAULT, new ActionListener<UpdateResponse>() {
             @Override
             public void onResponse(UpdateResponse updateResponse) {
-                System.out.println(JawaCore.pluginSlug + " " + targetUUID + "'s details have been updated.");
+                LOGGER.log(Level.INFO, "Details have been updated for {0}.", targetUUID.toString());
+                //System.out.println(JawaCore.pluginSlug + " " + targetUUID + "'s details have been updated.");
             }
 
             @Override
             public void onFailure(Exception arg0) {
-                System.out.println(JawaCore.pluginSlug + targetUUID + "'s information update failed.");
-                arg0.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Detail updated has FAILED for {0}.", targetUUID.toString());
+                //System.out.println(JawaCore.pluginSlug + targetUUID + "'s information update failed.");
             }
         });
     }
@@ -160,16 +194,18 @@ public class ESHandler {
                         messageToo.sendMessage(REDMESSAGEPLUG + "Request to index: " + resp.getIndex() + " for _id: " + resp.getId() + " has failed!!!");
                         messageToo.sendMessage(REDMESSAGEPLUG + "Failure Message: " + resp.getFailureMessage());
                         messageToo.sendMessage(REDMESSAGEPLUG + "Give your technical administrator this id to trace the error in the log: " + resp.toString());
-                        System.out.println(resp.toString() + ": runAsyncBulkRequest failure!! FailureMessage: " + resp.getFailureMessage());
+                        LOGGER.log(Level.SEVERE, "runAsyncBulkRequest failure!! \nResponse: {0} \nFailure Message: {1}", new Object[]{resp.toString(),resp.getFailureMessage()});
+                        //System.out.println(resp.toString() + ": runAsyncBulkRequest failure!! FailureMessage: " + resp.getFailureMessage());
                     }
                 }
             }
 
             @Override
             public void onFailure(Exception arg0) {
-                System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runAsyncBulkRequest!!");
-                System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
-                Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, arg0);
+                LOGGER.log(Level.SEVERE, "runArynxBulkRequest has encountered a SEVERE error, this is likely a database issue.");
+//                System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runAsyncBulkRequest!!");
+//                System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
+                LOGGER.log(Level.SEVERE, null, arg0);
             }
         });
     }
@@ -193,9 +229,10 @@ public class ESHandler {
                 }
             }
         } catch (IOException ex) {
-            System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runMultiIndexSearch!!");
-            System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
-            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, "runMultiIndexSearch has encountred a SEVERE exception. This is likely a database issue.");
+            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runMultiIndexSearch!!");
+            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
+            LOGGER.log(Level.SEVERE, null, ex);
         }
         return pdObject;
     }
@@ -237,7 +274,8 @@ public class ESHandler {
             SearchResponse playerSearchResponse = restClient.search(playerSearchRequest, RequestOptions.DEFAULT);
 
             if (JawaCore.debug) {
-                System.out.print(JawaCore.pluginSlug + handlerSlug + " Search Response: " + playerSearchResponse);
+                LOGGER.log(Level.INFO, "Debug Search Response: {0}", playerSearchResponse);
+                //System.out.print(JawaCore.pluginSlug + handlerSlug + " Search Response: " + playerSearchResponse);
             }
             SearchHit[] hits = playerSearchResponse.getHits().getHits();
             if (hits.length != 1) {
@@ -366,6 +404,39 @@ public class ESHandler {
         SearchHit[] hits = sResponse.getHits().getHits();
         pdObject.addPlayerData(hits[0].getSourceAsMap());
         return pdObject;
+    }
+    
+    /** Searches for a value within an index. This should only be used when the queryValue
+     * is unique to a document. (i.e. UUID, DiscordLink code, etc) If this value is not
+     * unique this will return only the zeroth result within the hits. If no document is
+     * found this will return null.
+     * @param index
+     * @param docValue
+     * @param queryValue
+     * @return
+     * @throws IOException 
+     */
+    public static PlayerDataObject getPlayerData(String index, String docValue, String queryValue) {
+        MultiSearchResponse response;
+        try {
+            response = restClient.msearch(ESRequestBuilder.buildSingleMultiSearchRequest(index, docValue, queryValue), RequestOptions.DEFAULT);
+            System.out.println(response.getResponses()[0].getResponse().getHits().getHits().length);
+            if (response.getResponses().length != 0) {
+                //System.out.println(response.getResponses());
+                Map<String, Object> data = response.getResponses()[0].getResponse().getHits().getHits()[0].getSourceAsMap();
+                UUID uuid = UUID.fromString(response.getResponses()[0].getResponse().getHits().getHits()[0].getId());
+                PlayerDataObject pdObject = new PlayerDataObject(uuid);
+                pdObject.addPlayerData(data);
+                return pdObject;
+            } else {
+                Logger.getLogger(handlerSlug).log(Level.INFO, "No ElasticSearch entry was found for{0} with a query value of {1} in the {2} index", new Object[]{docValue, queryValue, index});
+                return null;
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        }
+
     }
 
 //    public static SearchHit[] runAltSearch(CommandSender commandSender, String player){

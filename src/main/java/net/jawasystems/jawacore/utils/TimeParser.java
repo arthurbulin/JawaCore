@@ -70,5 +70,15 @@ public class TimeParser {
         return toTime.isBefore(LocalDateTime.now());
 
     }
+    
+    public static int getSeconds(String value){
+        if (value.toLowerCase().contains("s")){
+            return Integer.valueOf(value.toLowerCase().replace('s', ' '));
+        }else if (value.toLowerCase().contains("m")){
+            return Integer.valueOf(value.toLowerCase().replace('m', ' '));
+        } else {
+            return 0;
+        }
+    }
 
 }

@@ -55,6 +55,7 @@ import org.json.JSONObject;
  */
 public class PlayerDataObject {
 
+    private static final Logger LOGGER = Logger.getLogger("PlayerDataObject");
     private UUID player;
     private JSONObject banData;
     private JSONObject playerData;
@@ -185,7 +186,21 @@ public class PlayerDataObject {
     public String unbannedOn(String banDateTime) {
         return (String) getBanEntry(banDateTime).get("unbanned-on");
     }
-
+    
+    public boolean isBanLocked(){
+        if (getLatestBan().has("ban-lock")){
+            return getLatestBan().getBoolean("ban-lock");
+        } else return false;
+    }
+    
+    public String getBanLockAdmin(){
+        UUID adminUUID = UUID.fromString(getLatestBan().getString("ban-lock-by"));
+        return PlayerManager.getPlayerDataObject(adminUUID).getFriendlyName();
+    }
+    
+    public String getBanLockReason(){
+        return getLatestBan().getString("ban-lock-reason");
+    }
     /** Is a particular ban active.
      * @param banDateTime
      * @return 
@@ -705,6 +720,7 @@ public class PlayerDataObject {
      * @param ip
      */
     public void onJoinUpdate(String name, String ip) {
+        validateData(name, ip);
         setLastLogin();
         updateName(name);
         updateNameArray(name);
@@ -720,7 +736,8 @@ public class PlayerDataObject {
     
     public void repairMalformedData(){
         if (playerData.has("rank-data") && playerData.getJSONObject("rank-data").keySet().contains("rank-data")){
-            System.out.println("[PlayerDataObject] Malformed rank-history data has been detected. Attempting to fix.");
+            LOGGER.log(Level.INFO, "Malformed rank-history data has been detected for {0}:{1}. Attempting to fix.", new Object[]{getName(), player.toString()});
+            //System.out.println("[PlayerDataObject] Malformed rank-history data has been detected. Attempting to fix.");
             //PDO data correction
             JSONObject rankData = playerData.getJSONObject("rank-data");
             JSONObject tmpRankEntry = rankData.getJSONObject("rank-data");
@@ -756,8 +773,9 @@ public class PlayerDataObject {
     //#   Debug
     //##########################################################################
     public void spillData() {
-        System.out.println("PlayerDataObject Spilling data for player: " + player.toString());
-        System.out.println(playerData);
+        LOGGER.log(Level.INFO,"PlayerDataObject Spilling data for {0}:{1}\n{2}", new Object[]{getName(),player.toString(),playerData.toString(4)});
+        //System.out.println("PlayerDataObject Spilling data for player: " + player.toString());
+        //System.out.println(playerData);
     }
 
     //##########################################################################
@@ -796,7 +814,8 @@ public class PlayerDataObject {
         playerData.put("rank", "guest");
 
         if (JawaCore.debug) {
-            System.out.print(JawaCore.pluginSlug + handlerSlug + "firstTimePlayer data created as follows: " + playerData.toString());
+            LOGGER.log(Level.INFO, "First-time player data generated as follows: {0}", playerData.toString());
+            //System.out.print(handlerSlug + "firstTimePlayer data created as follows: " + playerData.toString());
         }
 
         return playerData;
@@ -910,6 +929,169 @@ public class PlayerDataObject {
         } else {
             return false;
         }
+    }
+    
+    /** Generate the initial discord data for a discord link. This will be called when
+     * a player is linking to discord for the first time or has had their discord link
+     * removed.
+     * @return 
+     */
+    private JSONObject createDiscordData(boolean newData){
+        JSONObject discordData = new JSONObject();
+        discordData.put("linked", false);
+        discordData.put("new", newData);
+        return discordData;
+    }
+    
+    /** Generate a new Discord link entry, generates a link code from the player UUID
+     * string and the current LocalDataTime and returns that code.
+     * @return 
+     */
+    public String generateDiscordCode(){
+        String code = "#" + String.valueOf(Math.abs((player.toString() + LocalDateTime.now()).hashCode())) + "#";
+        Logger.getLogger("PlayerDataObject").log(Level.INFO, "Generated a discord link code for {0}. Code: {1}", new Object[]{getName(), code});
+        
+//        boolean newData = !playerData.has("discord-data");
+//        JSONObject discordData = createDiscordData(newData);
+//        discordData.put("discord-code", code);
+//        playerData.put("discord-data", discordData);
+//        updatePlayerDataAsync();
+        return code;
+    }
+    
+    public String generateTestCode(){
+        return "#" + String.valueOf(Math.abs((player.toString() + LocalDateTime.now()).hashCode())) + "#";
+    }
+    
+    /** Returns true is a player is discord linked.
+     * @return 
+     */
+    public boolean isDiscordLinked(){
+        if (playerData.has("discord-data") && playerData.getJSONObject("discord-data").has("linked")){
+            return playerData.getJSONObject("discord-data").getBoolean("linked");
+        } else {
+            return false;
+        }
+    }
+    
+    /** This executes a player linking and formally creates the linked relationship
+     * in the database.
+     * @param id
+     * @param username
+     * @return 
+     */
+    public boolean linkToDiscord(Long id, String username){
+        if (!isDiscordLinked()) {
+            playerData.put("discord-data", createDiscordData(true));
+            playerData.getJSONObject("discord-data").put("discord-id", id);
+            playerData.getJSONObject("discord-data").put("discord-name", username);
+            playerData.getJSONObject("discord-data").put("linked", true);
+            playerData.getJSONObject("discord-data").put("linked-on", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            updatePlayerDataAsync();
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    public String getDiscordName(){
+        return playerData.getJSONObject("discord-data").getString("discord-name");
+    }
+    
+    public Long getDiscordID(){
+        return playerData.getJSONObject("discord-data").getLong("discord-id");
+    }
+    
+    public JSONObject getDiscordData(){
+        return playerData.getJSONObject("discord-data");
+    }
+    
+//    public getChatChannels(){
+//        
+//    }
+    
+    public boolean validateData(String name, String ip){
+        boolean repaired = false;
+        List<String> itemsRepaired = new ArrayList();
+        if (!playerData.has("first-login")) {
+            playerData.put("first-login", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            repaired = true;
+            itemsRepaired.add("first-login");
+        }
+        if (!playerData.has("last-login")){
+            setLastLogin();
+            repaired = true;
+            itemsRepaired.add("last-login");
+        }
+        if (!playerData.has("last-logout")) {
+            setLastLogout();
+            repaired = true;
+            itemsRepaired.add("last-logout");
+        }
+        if (!playerData.has("play-time")) {
+            playerData.put("play-time", 0);
+            repaired = true;
+            itemsRepaired.add("play-time");
+        }
+
+        if (!playerData.has("name")) {
+            playerData.put("name", name);
+            repaired = true;
+            itemsRepaired.add("name");
+        }
+        if (!playerData.has("name-data")) {
+            playerData.put("name-data", nameData(name, new JSONArray()));
+            repaired = true;
+            itemsRepaired.add("name-data");
+        }
+
+        if (!playerData.has("banned")) {
+            playerData.put("banned", false);
+            repaired = true;
+            itemsRepaired.add("banned");
+        }
+        if (!playerData.has("nick")) {
+            playerData.put("nick", "");
+            repaired = true;
+            itemsRepaired.add("nick");
+        }
+        if (!playerData.has("nick-data")) {
+            playerData.put("nick-data", new JSONArray());
+            repaired = true;
+            itemsRepaired.add("nick-data");
+        }
+        if (!playerData.has("tag")) {
+            playerData.put("tag", "");
+            repaired = true;
+            itemsRepaired.add("tag");
+        }
+        if (!playerData.has("star")) {
+            playerData.put("star", "");
+            repaired = true;
+            itemsRepaired.add("star");
+        }
+        if (!playerData.has("ip")) {
+            setIP(ip);
+            repaired = true;
+            itemsRepaired.add("ip");
+        }
+        if (!playerData.has("ips")) {
+            playerData.put("ips", ipData(ip, new JSONArray()));
+            repaired = true;
+            itemsRepaired.add("ips");
+        }
+
+        if (!playerData.has("rank")) {
+            playerData.put("rank", "guest");
+            repaired = true;
+            itemsRepaired.add("rank");
+        }
+        
+        if (!itemsRepaired.isEmpty()) {
+            Logger.getLogger("PlayerDataObject").log(Level.INFO, "Data validation has found malformed player data for {0}({1}) and has repaired the following items: {2}", new Object[]{playerData.getString("name"), player.toString(), String.join(", ", itemsRepaired)});
+        }
+        
+        return repaired;
     }
 
 }
