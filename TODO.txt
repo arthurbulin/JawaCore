@@ -1,23 +1,29 @@
-Thing done in this update:
- - finish chat updates (JawaChat)
- - upgrade pm chatting (JawaChat)
- - ban data commands (JawaPermissions)
- - correct malformed JSONObject for rank-data (JawaCore)
- - fixed teleport drop throughs (jawacommands, jawatoolbox (void death protection)
- - add rank descriptions (JawaPermissions)
- - alt data commands (JawaPermissions - basic functionality)
- - freeze command
-
+Things finished in this build:
+ - Better tab complete for /home
+ - pweather with tab complete
+ - ptime with tab complete
+ 
 Things to finish in this build:
  - try to fix sleep plugin
 	- allow a player to get sleep to stop phantoms
  - better descriptions and usages
  - migrate all commands to command handler registration
  - config options for chat fixes and new commands, nothing more, that will come later
+ - tab completes
+ - Target selection processors
+ - Warps
+        - impliment Target selection processors
+        - make commands less trouble some
+        - inheritence chain
+ - Change log tracking in all plugins
+ - foxelbot integration
+        - foxelbot can link discord players to minecraft
+        - foxelbot can update discord ranks to match server ranks
+        - foxelbot can report to staff with @staff given by a player
+        - foxelbot can scan chat for key troll words and alert staff in discord
 
 Stretch
  - fucking kit command
- - safe teleporting in general
 
 Next build?
  - alt data commands (Auto search, minecraft name, historical ips, etc)
@@ -54,3 +60,14 @@ distant build:
  - adding special parameters for command blocks
  - rank based motd messages
  - minecraft account name history
+
+Thing done in last update:
+ - finish chat updates (JawaChat)
+ - upgrade pm chatting (JawaChat)
+ - ban data commands (JawaPermissions)
+ - correct malformed JSONObject for rank-data (JawaCore)
+ - fixed teleport drop throughs (jawacommands, jawatoolbox (void death protection)
+ - add rank descriptions (JawaPermissions)
+ - alt data commands (JawaPermissions - basic functionality)
+ - freeze command
+ - safe teleport with frozen tps
