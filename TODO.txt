@@ -26,6 +26,8 @@ Stretch
  - fucking kit command
 
 Next build?
+ - add dynamic debug options
+ - add ability to deny joining of people below certain ranks
  - alt data commands (Auto search, minecraft name, historical ips, etc)
  - private chat channels?
  - /rules command and /accept command?
