@@ -6,7 +6,9 @@
 package net.jawasystems.jawacore;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -27,34 +29,27 @@ import org.elasticsearch.action.search.MultiSearchRequest;
  */
 public class PlayerManager {
     
+    private static final Logger LOGGER = Logger.getLogger("JawaCore][PlayerHandler");
     public static final String NOPLAYERERROR = ChatColor.RED + "> Error: That player is not found or is not online! Try their actual minecraft name instead of nickname.";
 
-    private static JavaPlugin plugin = JawaCore.plugin;
+    private static final JavaPlugin plugin = JawaCore.plugin;
 
-    private static HashMap<UUID, PlayerDataObject> playerDataObjects = new HashMap();
-    private static HashMap<String, UUID> nickNameMap = new HashMap();
+    private static final HashMap<UUID, PlayerDataObject> playerDataObjects = new HashMap();
+    private static final HashMap<String, UUID> nickNameMap = new HashMap();
 
-    private static HashMap<UUID, PlayerDataObject> offlinePlayerCache = new HashMap();
-    private static HashMap<String, UUID> offlineNickNameMap = new HashMap();
-    private static HashMap<LocalDateTime, UUID> offlineCacheAccessTime = new HashMap();
+    private static final HashMap<UUID, PlayerDataObject> offlinePlayerCache = new HashMap();
+    private static final HashMap<String, UUID> offlineNickNameMap = new HashMap();
+    private static final HashMap<LocalDateTime, UUID> offlineCacheAccessTime = new HashMap();
 
-    private static HashMap<String, UUID> playerDiscordCodes = new HashMap();
-    private static HashMap<UUID, String> playerDiscordCodesReverse = new HashMap();
-
-//    public PlayerManager(JavaPlugin plugin) {
-//        this.plugin = plugin;
-//        playerDataObjects = new HashMap();
-//        nickNameMap = new HashMap();
-//
-//        offlinePlayerCache = new HashMap();
-//        offlineNickNameMap = new HashMap();
-//        offlineCacheAccessTime = new HashMap();
-//
-//        playerDiscordCodes = new HashMap();
-//        playerDiscordCodesReverse = new HashMap();
-//
-//        generateCleanupTask();
-//    }
+    private static final HashMap<String, UUID> playerDiscordCodes = new HashMap();
+    private static final HashMap<UUID, String> playerDiscordCodesReverse = new HashMap();
+    
+    /** Map to track users on CrossLink nodes. This will only be used if the server
+     * is a controller. Usernames -> UUID
+     */
+    private static final HashMap<String, HashMap<String, UUID>> crossLinkUsers = new HashMap();
+    //Nicks -> Usernames
+    private static final HashMap<String, HashMap<String, String>> crossLinkUsersNickNames = new HashMap();
 
     /**
      * Clear all data contained in this construct. Should be called on shut
@@ -285,8 +280,7 @@ public class PlayerManager {
                     }
                 }
                 //TODO add debug
-                if (JawaCore.debug) //To shut this thing up
-                {
+                if (JawaCore.debug) {//To shut this thing up
                     Logger.getLogger("JawaCore][PlayerManager][Cleanup Task").log(Level.INFO, "Cleanup completed. {0} players removed from cache.", offlineRemoved);
                 }
 
@@ -301,7 +295,7 @@ public class PlayerManager {
     }
 
     private static void clearOfflineCaches() {
-        Logger.getLogger("[JawaCore][PlayerManager][Cleanup Task]").log(Level.INFO, " A cache mismatch was found. All offline player caches have been cleared.");
+        Logger.getLogger("JawaCore][PlayerManager][Cleanup Task").log(Level.INFO, " A cache mismatch was found. All offline player caches have been cleared.");
         offlineCacheAccessTime.clear();
         offlineNickNameMap.clear();
         offlinePlayerCache.clear();
@@ -341,6 +335,29 @@ public class PlayerManager {
     
     public static UUID getPlayerCodedUUID(String linkCode){
         return playerDiscordCodes.get(linkCode);
+    }
+    
+    /** Update the controller's list of players on various nodes.
+     * @param serverName
+     * @param uuidMap
+     * @param nickMap 
+     */
+    public static void updateCrossLinkPlayers(String serverName, HashMap<String, UUID> uuidMap, HashMap<String, String> nickMap){
+        crossLinkUsers.put(serverName, uuidMap);
+        crossLinkUsersNickNames.put(serverName, nickMap);
+        if (JawaCore.debug) {
+            LOGGER.log(Level.INFO, "Recived {0} users from {1}", new Object[]{uuidMap.size(), serverName});
+            LOGGER.log(Level.INFO, "UUID Map: {0}", uuidMap);
+            LOGGER.log(Level.INFO, "Nick Map: {0}", nickMap);
+        }
+    }
+    
+    public static List<String> getOnlinePlayerList() {
+        List<String> tmp = new ArrayList();
+        Bukkit.getServer().getOnlinePlayers().forEach((player) -> {
+            tmp.add(player.getName());
+        });
+        return tmp;
     }
 
 }

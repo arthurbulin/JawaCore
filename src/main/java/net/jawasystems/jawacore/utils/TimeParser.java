@@ -59,9 +59,9 @@ public class TimeParser {
         return getHumanReadableDateTime(time, 0);
     }
 
-    /** Takes a LocalDateTime converted to a string and outputs false if that LocalDateTime is 
-     * after the current time. I.E. false if in the past. true 
-     * @param to
+    /** *  Takes a LocalDateTime converted to a string and outputs false if that LocalDateTime is 
+     * after the current time.I.E.false if in the past. true
+     * @param time
      * @return 
      */
     public static boolean inPast(String time) {

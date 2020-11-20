@@ -83,6 +83,12 @@ public class TargetSelectorProcessor {
         }
     }
     
+    /** Get all player within the defined @a area. This sill return a List<Player>,
+     * null if bad syntax or no online players are in that world, or an empty list.
+     * @param atA
+     * @param sender
+     * @return 
+     */
     public static List<Player> getAtA(String atA, CommandSender sender) {
         //@a - all online players
         //@a[world=<world>] - all players in a specific world

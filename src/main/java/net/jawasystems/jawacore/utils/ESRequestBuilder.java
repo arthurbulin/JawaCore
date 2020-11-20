@@ -5,6 +5,7 @@
  */
 package net.jawasystems.jawacore.utils;
 
+import java.util.Set;
 import java.util.UUID;
 import org.bukkit.entity.Player;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -83,7 +84,7 @@ public class ESRequestBuilder {
     
     public static SearchRequest getAllOfIndex(String index){
         SearchRequest sRequest = new SearchRequest(index);
-        sRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+        sRequest.source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).size(1000));
         return sRequest;
     }
     
@@ -121,6 +122,23 @@ public class ESRequestBuilder {
                         .source(new SearchSourceBuilder()
                                 .query(QueryBuilders.matchQuery("ip", ip)));
         return request;
+        
+    }
+    
+    /** Generate a multisearch request that will search for each IP in the array.
+     * @param ips
+     * @return 
+     */
+    public static MultiSearchRequest altSearchRequest(JSONArray ips){
+        MultiSearchRequest msRequest = buildSingleMultiSearchRequest("players", "ip", ips.getString(0));
+        for ( int x = 0; x < ips.length(); x++) {
+            addToMultiSearchRequest(msRequest, "players", "ip", ips.getString(x));
+        }
+        
+//        SearchRequest request = new SearchRequest("players")
+//                        .source(new SearchSourceBuilder()
+//                                .query(QueryBuilders.matchQuery("ip", ip)));
+        return msRequest;
         
     }
 }

@@ -366,7 +366,7 @@ public class PlayerDataObject {
      */ //TODO Add minecraft account name tracking
     private void updateName(String name) {
         if (!getName().equals(name)) {
-            setName(getPlayer().getName());
+            setName(name);
         }
     }
 

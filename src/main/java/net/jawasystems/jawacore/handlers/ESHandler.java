@@ -6,7 +6,6 @@
 package net.jawasystems.jawacore.handlers;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -18,7 +17,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.Configuration;
 import org.bukkit.entity.Player;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
@@ -471,6 +469,11 @@ public class ESHandler {
             return null;
         }
     }
+    
+//    public static SearchHit[] runAltSearch(MultiSearchRequest msRequest) {
+//        MultiSearchResponse response = restClient.ms
+//        
+//    }
     
     public static void correctMalformedField(String field, String index, UUID uuid) {
         UpdateRequest deleteRequest = new UpdateRequest();
