@@ -14,7 +14,12 @@ import net.jawasystems.jawacore.JawaCore;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.jawasystems.jawacore.utils.ESRequestBuilder;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -36,6 +41,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
@@ -55,29 +61,53 @@ public class ESHandler {
     private static String eshost;
     private static int esport;
 
+    private static CredentialsProvider credentialsProvider;
+    
     private final static String handlerSlug = "[ESHandler] ";
     private static boolean esDebug;
     private final static String REDMESSAGEPLUG = ChatColor.RED + "> ";
     private final static String GREENMESSAGEPLUG = ChatColor.GREEN + "> ";
 
-    /** Initialize the RestHighLevelClient and validate that it can communicate with
-     * the ElasticSearch Database. Returns this state and sets the debug value
-     * for ESDB operations.
+    /** *  Initialize the RestHighLevelClient and validate that it can communicate with
+     * the ElasticSearch Database.Returns this state and sets the debug value
+ for ESDB operations.
      * @param host
      * @param port
+     * @param user
+     * @param password
      * @param debug
      * @return 
      */
-    public static boolean startESHandler(String host, int port, boolean debug) {
+    public static boolean startESHandler(String host, int port, String user, String password, boolean debug) {
         eshost = host;
         esport = port;
         
         LOGGER.log(Level.INFO, "Starting the ElasticSearch Database rest client on {0}:{1}.", new Object[]{eshost,esport});
-        
+        /*
+        When configuring elasticsearch for credentials:
+        In /etc/elasticsearch/elasticsearch.yml set:    
+            xpack.security.enabled: true
+        */
         //TODO add credentials handling
+        System.out.println(user);
+        System.out.println(password);
+        credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(user, password));
+
+//        restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
+//                .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
+//                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)));
+
         restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
                 .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
-                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)));
+                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+            @Override
+            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                httpClientBuilder.disableAuthCaching();
+                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+            }
+        }));
+        
         boolean restPing = false;
         try {
             restPing = restClient.ping(RequestOptions.DEFAULT);

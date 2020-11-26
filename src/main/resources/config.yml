@@ -1,4 +1,6 @@
 servername: main
 eshost: localhost
 esport: 9200
+esuser: mc_server
+espass: password
 debug: false

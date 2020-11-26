@@ -29,7 +29,7 @@ public class JawaCore extends JavaPlugin {
 
         loadConfig();
 
-        if (ESHandler.startESHandler(config.getString("eshost", "localhost"), config.getInt("esport", 9200), config.getBoolean("debug", false))) {
+        if (ESHandler.startESHandler(config.getString("eshost", "localhost"), config.getInt("esport", 9200), config.getString("esuser","mc_server"), config.getString("espass","password"), config.getBoolean("debug", false))) {
 
             PlayerManager.generateCleanupTask();
 

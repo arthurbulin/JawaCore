@@ -452,8 +452,7 @@ public class PlayerDataObject {
         else return false;
     }
     
-    /** Sets the mute state of a player.
-     * @param isMuted 
+    /** Sets the mute state of a player. 
      */
     public void mute() {
         playerData.put("mute", true);
@@ -491,7 +490,7 @@ public class PlayerDataObject {
     }
     
     public List<String> getHomeList() {
-        return new ArrayList<String>(homeData.keySet());
+        return new ArrayList(homeData.keySet());
     }
 
     public boolean containsHome(String homeName) {
@@ -727,6 +726,7 @@ public class PlayerDataObject {
         updateIP(ip);
         updateIPArray(ip);
         repairMalformedData();
+        
         if (updatePlayerData()) {
             callPlayerInfoLoaded();
         }
