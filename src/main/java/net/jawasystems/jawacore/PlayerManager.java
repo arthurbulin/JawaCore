@@ -15,13 +15,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.jawasystems.jawacore.handlers.ESHandler;
-import net.jawasystems.jawacore.utils.ESRequestBuilder;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.elasticsearch.action.search.MultiSearchRequest;
 
 /**
  *
@@ -160,7 +158,7 @@ public class PlayerManager {
         } else {
             PlayerDataObject pdObject = ESHandler.findOfflinePlayer(name, true);
             if (pdObject != null) {
-                pdObject.loadPlayerBanData();
+                //pdObject.loadPlayerBanData();
                 offlineCacheAccessTime.put(LocalDateTime.now(), pdObject.getUniqueID());
                 offlinePlayerCache.put(pdObject.getUniqueID(), pdObject);
                 offlineNickNameMap.put(pdObject.getPlainNick().toUpperCase().replaceAll(" ", "_"), pdObject.getUniqueID());
@@ -174,9 +172,10 @@ public class PlayerManager {
     }
 
     private static PlayerDataObject getOfflinePlayer(UUID uuid) {
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        multiSearchRequest.add(ESRequestBuilder.buildSearchRequest("players", "_id", uuid.toString()));
-        return ESHandler.runMultiIndexSearch(multiSearchRequest, new PlayerDataObject(uuid));
+//        MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+//        multiSearchRequest.add(ESRequestBuilder.buildSearchRequest("players", "_id", uuid.toString()));
+//        return ESHandler.runMultiIndexSearch(multiSearchRequest, new PlayerDataObject(uuid));
+        return ESHandler.getPlayerData(uuid.toString());
     }
 
     /**
@@ -261,28 +260,29 @@ public class PlayerManager {
                 //Cleanup offline cached players that havent been accessed in 5 minutes
                 int offlineRemoved = 0;
                 LocalDateTime now = LocalDateTime.now();
-                for (LocalDateTime accessTime : offlineCacheAccessTime.keySet()) {
-                    if (now.isBefore(accessTime.plusMinutes(5))) {
-                        if (offlinePlayerCache.containsKey(offlineCacheAccessTime.get(accessTime))) { //if key is in the offline cache
-                            String nick = offlinePlayerCache.get(offlineCacheAccessTime.get(accessTime)).getPlainNick().toUpperCase().replaceAll(" ", "_");
-                            if (offlineNickNameMap.containsKey(nick)) {
-                                offlineNickNameMap.remove(nick);
-                                offlinePlayerCache.remove(offlineCacheAccessTime.get(accessTime));
-                                offlineCacheAccessTime.remove(accessTime);
-                                offlineRemoved++;
+                if (!offlineCacheAccessTime.isEmpty()) {
+                    for (LocalDateTime accessTime : offlineCacheAccessTime.keySet()) {
+                        if (now.isBefore(accessTime.plusMinutes(5))) {
+                            if (offlinePlayerCache.containsKey(offlineCacheAccessTime.get(accessTime))) { //if key is in the offline cache
+                                String nick = offlinePlayerCache.get(offlineCacheAccessTime.get(accessTime)).getPlainNick().toUpperCase().replaceAll(" ", "_");
+                                if (offlineNickNameMap.containsKey(nick)) {
+                                    offlineNickNameMap.remove(nick);
+                                    offlinePlayerCache.remove(offlineCacheAccessTime.get(accessTime));
+                                    offlineCacheAccessTime.remove(accessTime);
+                                    offlineRemoved++;
+                                } else {
+                                    clearOfflineCaches();
+                                }
+
                             } else {
                                 clearOfflineCaches();
                             }
-
-                        } else {
-                            clearOfflineCaches();
                         }
                     }
-                }
-                //TODO add debug
-                if (JawaCore.debug) {//To shut this thing up
-                    Logger.getLogger("JawaCore][PlayerManager][Cleanup Task").log(Level.INFO, "Cleanup completed. {0} players removed from cache.", offlineRemoved);
-                }
+                    //TODO add debug
+                    if (JawaCore.debug) {//To shut this thing up
+                        Logger.getLogger("JawaCore][PlayerManager][Cleanup Task").log(Level.INFO, "Cleanup completed. {0} players removed from cache.", offlineRemoved);
+                    }
 
 //                //Cleanup online player caches that are out of sync (shouldn't happen unless something weird happened)
 //                if ((playerDataObjects.size() != nickNameMap.size()) || (playerDataObjects.size() != Bukkit.getServer().getOnlinePlayers().size())) {
@@ -290,6 +290,7 @@ public class PlayerManager {
 //                        if (player.getUniqueId())
 //                    }
 //                }
+                }
             }
         }, 6000, 6000);
     }

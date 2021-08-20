@@ -10,12 +10,12 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.UUID;
-import net.jawasystems.jawacore.PlayerManager;
+import java.util.logging.Logger;
+import net.jawasystems.jawacore.JawaCore;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -24,43 +24,29 @@ import org.json.JSONObject;
  * @author Arthur Bulin
  */
 public class PlayerDataHandler {
-    public static JavaPlugin plugin;
-    private static HashMap<UUID, String> autoElevate;
-    public static final String handlerSlug = "[PlayerDataHandler] ";
     
-    public PlayerDataHandler(JavaPlugin plugin, HashMap<UUID, String> autoElevate){
-        PlayerDataHandler.plugin = plugin;
-        PlayerDataHandler.autoElevate = autoElevate;
-    }
+//    private static final Logger LOGGER = Logger.getLogger("PlayerDataHandler");
     
     /** Assemble a JSONObject that contains information for that specific ban and returns it in a top level ban object.
-     * @param commandSender
-     * @param parsedArguments
+     * @param reason
+     * @param adminUUID
+     * @param console
+     * @param banLength
      * @param banTime
      * @return
      */
-    public static JSONObject assembleBanData(CommandSender commandSender, HashMap<String,String> parsedArguments, LocalDateTime banTime){
+    public static JSONObject assembleBanData(String reason, UUID adminUUID, boolean console, LocalDateTime banLength){
         //JSONObject topLevelBanObject = new JSONObject();
         JSONObject banData = new JSONObject();
-        String endOfBanDate = assessBanTime(parsedArguments, banTime);
-               
-        banData.put("reason", parsedArguments.get("r"));
+        //String endOfBanDate = assessBanTime(parsedArguments, banTime);
+        
+        banData.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        banData.put("reason", reason);
        
-        if (commandSender instanceof Player){
-            banData.put("banned-by", ((Player) commandSender).getUniqueId().toString());
-            banData.put("via-console", false);
-        } else {
-            //System.out.println("by argument: " + parsedArguments.get("b"));
-            String adminUUID = PlayerManager.getPlayerDataObject(parsedArguments.get("b")).getUniqueID().toString();
-            //System.out.println("adminUUID: "+ adminUUID);
-            if (adminUUID == null) return null;
-            
-            banData.put("banned-by", adminUUID);
-            banData.put("via-console", true);
-        }
+        banData.put("banned-by", adminUUID.toString());
+        banData.put("via-console", console);     
         
-        
-        banData.put("banned-until", endOfBanDate);
+        banData.put("banned-until", banLength.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         //banData.put("latest-ban", banTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         
         banData.put("active", true);
@@ -71,33 +57,23 @@ public class PlayerDataHandler {
     }
     
     
-    public static JSONObject assembleUnBanData(PlayerDataObject admin, HashMap<String, String> parsedArguments, String unBanTime){
-        //Assemble unban information for the ban index
-        JSONObject banData = new JSONObject();
-        banData.put("unreason", parsedArguments.get("r"));
-        banData.put("active", false);
-        banData.put("unbanned-by", admin.getUniqueID().toString());
-        banData.put("unbanned-on", unBanTime);
-                    
-        if (admin.isOnline()){
-            banData.put("unbanned-via-console", false);
-        }
-        else {
-            //Plug the uuid into the ban index
-            banData.put("unbanned-via-console", true);
-        }
-        //topLevelBanObject.put(banTime, banData);
-        return banData;
+    public static void assembleUnBanData(String unreason, UUID adminUUID, boolean console, JSONObject banObject){
+        banObject.put("unreason", unreason);
+        banObject.put("active", false);
+        banObject.put("unbanned-by", adminUUID.toString());
+        banObject.put("unbanned-on", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        banObject.put("unbanned-via-console", console);
+        
     }
     
-    public static JSONObject assembleExpiredUnBanData(){
-        JSONObject banData = new JSONObject();
-        banData.put("unreason", "This ban has expired and the user is being unbanned by JawaCore.");
-        banData.put("active", false);
-        banData.put("unbanned-by", "00000000-0000-0000-0000-000000000000");
-        banData.put("unbanned-on", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    public static void assembleExpiredUnBanData(JSONObject latestBan){
+        //JSONObject banData = new JSONObject();
+        latestBan.put("unreason", "This ban has expired and the user is being unbanned by JawaCore.");
+        latestBan.put("active", false);
+        latestBan.put("unbanned-by", "00000000-0000-0000-0000-000000000000");
+        latestBan.put("unbanned-on", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         
-        return banData;
+        //return banData;
     }
     
     /** Evaluates ban time and creates a string representing it in LocalDateTime format.
@@ -120,7 +96,7 @@ public class PlayerDataHandler {
             }
             return adjustedDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         } else {
-            return "forever";
+            return LocalDateTime.of(3000, 1, 1, 0, 0).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         }  
     }
     
@@ -199,18 +175,18 @@ public class PlayerDataHandler {
     public static JSONObject createPlayerRankChangeData(String fromRank, String toRank, String byWhom){
         //JSONObject playerData = new JSONObject();
         JSONObject rankData = new JSONObject();
-        JSONObject rankDataTop = new JSONObject();
+        //JSONObject rankDataTop = new JSONObject();
         
         rankData.put("from-rank", fromRank);
         rankData.put("to-rank", toRank);
         rankData.put("changed-by", byWhom);
-        
-        rankDataTop.put(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), rankData);
+        rankData.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        //rankDataTop.put(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), rankData);
         
         //playerData.put("rank", toRank);
         //playerData.put("rank-data", rankDataTop);
         
-        return rankDataTop;
+        return rankData;
     }
     
     /** Generate small JSONObject for updating a player's tag.
@@ -239,7 +215,7 @@ public class PlayerDataHandler {
      * @throws IOException 
      */
     public static PlayerDataObject validatePlayer(CommandSender commandSender, String target) throws IOException{
-        Player onlinePlayer = plugin.getServer().getPlayer(target);
+        Player onlinePlayer = JawaCore.getPlugin().getServer().getPlayer(target);
         PlayerDataObject pdObject = null;
         if (onlinePlayer == null){ //If not online
             pdObject = ESHandler.findOfflinePlayer(target, true);

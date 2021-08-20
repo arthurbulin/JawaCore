@@ -6,7 +6,9 @@
 package net.jawasystems.jawacore.handlers;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -23,8 +25,11 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -43,6 +48,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
@@ -68,9 +76,9 @@ public class ESHandler {
     private final static String REDMESSAGEPLUG = ChatColor.RED + "> ";
     private final static String GREENMESSAGEPLUG = ChatColor.GREEN + "> ";
 
-    /** *  Initialize the RestHighLevelClient and validate that it can communicate with
+    /** Initialize the RestHighLevelClient and validate that it can communicate with
      * the ElasticSearch Database.Returns this state and sets the debug value
- for ESDB operations.
+     * for ESDB operations.
      * @param host
      * @param port
      * @param user
@@ -88,26 +96,30 @@ public class ESHandler {
         In /etc/elasticsearch/elasticsearch.yml set:    
             xpack.security.enabled: true
         */
-        //TODO add credentials handling
-        System.out.println(user);
-        System.out.println(password);
+        
         credentialsProvider = new BasicCredentialsProvider();
         credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(user, password));
-
-//        restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
-//                .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
-//                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)));
-
-        restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
-                .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
-                        -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
-            @Override
-            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
-                httpClientBuilder.disableAuthCaching();
-                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+        try {
+            if (!JawaCore.plugin.getConfig().getBoolean("es-x-security", false)) {
+                restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
+                        .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
+                                -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)));
+            } else {
+                restClient = new RestHighLevelClient(RestClient.builder(new HttpHost(eshost, esport, "http"))
+                        .setRequestConfigCallback((RequestConfig.Builder requestConfigBuilder)
+                                -> requestConfigBuilder.setConnectTimeout(5000).setSocketTimeout(60000)).setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+                    @Override
+                    public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                        httpClientBuilder.disableAuthCaching();
+                        return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+                    }
+                }));
             }
-        }));
-        
+        } catch (ElasticsearchException e) {
+            //LOGGER.log(Level.SEVERE, "Unable to connect to database");
+            return false;
+        }
+                        
         boolean restPing = false;
         try {
             restPing = restClient.ping(RequestOptions.DEFAULT);
@@ -123,6 +135,84 @@ public class ESHandler {
         return restPing;
     }
     
+    
+    /** Returns true if an index exists and false if it does not. If there is an
+     * error then it return null;
+     * @param index
+     * @return 
+     */
+    public static boolean indexExists(String index) throws IOException{
+        GetIndexRequest request = new GetIndexRequest(index);
+            return restClient.indices().exists(request, RequestOptions.DEFAULT);
+
+    }
+    
+    /** Get a list of the indicies in the cluster.
+     * @return 
+     */
+    public static Set<String> getAllIndices(){
+        ClusterHealthRequest request = new ClusterHealthRequest();
+        try {
+            ClusterHealthResponse response = restClient.cluster().health(request, RequestOptions.DEFAULT);
+            Set<String> indices = response.getIndices().keySet();
+            return indices;
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+        }
+        return new HashSet<>();
+    }
+    
+    /** Create the specified index without any defined mappings. This creates
+     * an ElasticSearch index with only defaults.
+     * @param index The name of the index to create
+     * @return 
+     */
+    public static boolean createIndex(String index){
+        return createIndex(index, null, null);
+    }
+    
+    /** Create the specified index with the defined mappings. This assumes all 
+     * defaults other wise. 
+     * @param index The name of the index to be created
+     * @param mappings The mappings for the index
+     * @return True if shard's were acknowledge start during index creation. False if not or on error.
+     */
+    public static boolean createIndex(String index, Map<String,Object> mappings){
+        return createIndex(index, mappings, null);
+    }
+    
+    /** Create the specified index with the defined mappings. This assumes all 
+     * defaults other wise. 
+     * @param index The name of the index to be created
+     * @param indexSettings JSONObject with the settings (THIS DOESN'T WORK YET)
+     * @return True if shard's were acknowledge start during index creation. False if not or on error.
+     */
+    public static boolean createIndex(String index, JSONObject indexSettings){
+        return createIndex(index, null, indexSettings);
+    }
+    
+    /** Create the specified index with the defined mappings and settings 
+     * @param index The name of the index to be created
+     * @param mappings The mappings for the index
+     * @param indexSettings JSONObject with the settings (THIS DOESN'T WORK YET)
+     * @return True if shard's were acknowledge start during index creation. False if not or on error.
+     */
+    public static boolean createIndex(String index, Map<String,Object> mappings, JSONObject indexSettings){
+        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
+        if (mappings != null) indexRequest.mapping(mappings);
+        if (indexSettings != null && !indexSettings.isEmpty()) {
+            //do stuff
+        }
+        try {
+            CreateIndexResponse response = restClient.indices().create(indexRequest, RequestOptions.DEFAULT);
+            return response.isShardsAcknowledged();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, "An error occured attempting to create the index {0}. Stack trace follows:", index);
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+        
     public static void shutdown(){
         try {
             restClient.close();
@@ -197,13 +287,13 @@ public class ESHandler {
             @Override
             public void onFailure(Exception arg0) {
                 LOGGER.log(Level.SEVERE, "Detail updated has FAILED for {0}.", targetUUID.toString());
+                arg0.printStackTrace();
                 //System.out.println(JawaCore.pluginSlug + targetUUID + "'s information update failed.");
             }
         });
     }
 
-    /**
-     * This will run and Async bulk request and print generic indexing success
+    /** This will run and Async bulk request and print generic indexing success
      * or failure messages to the commandSender. TODO later this will accept a
      * message object so that good response can be sent to the players and
      * server without having to overload the hell out of the call.
@@ -238,32 +328,32 @@ public class ESHandler {
         });
     }
 
-    /**
-     * Executes a multi index search and returns the information in a
-     * PlayerDataObject.
-     *
-     * @param multiSearchRequest
-     * @param pdObject
-     * @return
-     */
-    public static PlayerDataObject runMultiIndexSearch(MultiSearchRequest multiSearchRequest, PlayerDataObject pdObject) {
-
-        try {
-            MultiSearchResponse mSResponse = restClient.msearch(multiSearchRequest, RequestOptions.DEFAULT);
-            for (MultiSearchResponse.Item resp : mSResponse.getResponses()) {
-                //if it isnt a failure add it
-                if (!resp.isFailure() && (resp.getResponse().getHits().getHits().length == 1)) {
-                    pdObject.addSearchData(resp.getResponse().getHits().getHits()[0].getIndex(), resp.getResponse().getHits().getHits()[0].getSourceAsMap());
-                }
-            }
-        } catch (IOException ex) {
-            LOGGER.log(Level.SEVERE, "runMultiIndexSearch has encountred a SEVERE exception. This is likely a database issue.");
-            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runMultiIndexSearch!!");
-            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
-            LOGGER.log(Level.SEVERE, null, ex);
-        }
-        return pdObject;
-    }
+//    /**
+//     * Executes a multi index search and returns the information in a
+//     * PlayerDataObject.
+//     *
+//     * @param multiSearchRequest
+//     * @param pdObject
+//     * @return
+//     */
+//    public static PlayerDataObject runMultiIndexSearch(MultiSearchRequest multiSearchRequest, PlayerDataObject pdObject) {
+//
+//        try {
+//            MultiSearchResponse mSResponse = restClient.msearch(multiSearchRequest, RequestOptions.DEFAULT);
+//            for (MultiSearchResponse.Item resp : mSResponse.getResponses()) {
+//                //if it isnt a failure add it
+//                if (!resp.isFailure() && (resp.getResponse().getHits().getHits().length == 1)) {
+//                    pdObject.addSearchData(resp.getResponse().getHits().getHits()[0].getIndex(), resp.getResponse().getHits().getHits()[0].getSourceAsMap());
+//                }
+//            }
+//        } catch (IOException ex) {
+//            LOGGER.log(Level.SEVERE, "runMultiIndexSearch has encountred a SEVERE exception. This is likely a database issue.");
+//            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runMultiIndexSearch!!");
+//            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
+//            LOGGER.log(Level.SEVERE, null, ex);
+//        }
+//        return pdObject;
+//    }
 
     /**
      * This allows a findOfflinePlayer call that moves player existence checking
@@ -402,6 +492,27 @@ public class ESHandler {
             return false;
         }
     }
+    
+    /** Perform a single Asynchronous request.
+     * @param indexRequest 
+     */
+    public static void runAsyncSingleIndexRequest(IndexRequest indexRequest) {
+
+        restClient.indexAsync(indexRequest, RequestOptions.DEFAULT, new ActionListener<IndexResponse>() {
+            @Override
+            public void onResponse(IndexResponse response) {
+                if (JawaCore.debug) LOGGER.log(Level.INFO, "Single Async Index Request completed successfully");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                LOGGER.log(Level.SEVERE, "Single Async Index Request failed. Stack trace follows:");
+                LOGGER.log(Level.SEVERE, null, e);
+            }
+        });
+        
+
+    }
 
     public static boolean runSingleDocumentDeleteRequest(DeleteRequest deleteRequest) {
         try {
@@ -422,16 +533,35 @@ public class ESHandler {
         }
     }
 
-    public static PlayerDataObject getPlayerData(Player target) throws IOException {
+    /** Return a PlayerDataObject with located player data. If data is not located
+     * null is returned.
+     * @param target Player object.
+     * @return PlayerDataObject. If player data is not found null.
+     */
+    public static PlayerDataObject getPlayerData(Player target) {
         return getPlayerData(target.getUniqueId().toString());
     }
 
-    public static PlayerDataObject getPlayerData(String target) throws IOException {
-        PlayerDataObject pdObject = new PlayerDataObject(UUID.fromString(target));
-        SearchResponse sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "_id", target), RequestOptions.DEFAULT);
-        SearchHit[] hits = sResponse.getHits().getHits();
-        pdObject.addPlayerData(hits[0].getSourceAsMap());
-        return pdObject;
+    /** Return a PlayerDataObject with located player data. If data is not located
+     * null is returned.
+     * @param targetUUID Player uuid in string form.
+     * @return PlayerDataObject. If player data is not found null.
+     */
+    public static PlayerDataObject getPlayerData(String targetUUID) {
+        try {
+            PlayerDataObject pdObject = new PlayerDataObject(UUID.fromString(targetUUID));
+            SearchResponse sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "_id", targetUUID), RequestOptions.DEFAULT);
+            SearchHit[] hits = sResponse.getHits().getHits();
+            if (hits == null || hits.length == 0){
+                return null;
+            } else {
+                pdObject.addPlayerData(hits[0].getSourceAsMap());
+                return pdObject;
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            return null;
+        }
     }
     
     /** Searches for a value within an index. This should only be used when the queryValue

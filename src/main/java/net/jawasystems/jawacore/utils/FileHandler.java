@@ -27,22 +27,33 @@ public class FileHandler {
     
     private static final Logger LOGGER = Logger.getLogger("FileHandler");
     
-    public static FileConfiguration getYMLFile(String filePath, InputStream defaultFile) throws FileNotFoundException, IOException, InvalidConfigurationException{
+    public static FileConfiguration getYMLFile(String filePath, InputStream defaultFile) {
         File file = new File(filePath);
         InputStream io;
         FileConfiguration ymlFile = new YamlConfiguration();
         
         if (file.exists()){
-            io = new FileInputStream(file);
+            try {
+                io = new FileInputStream(file);
+                ymlFile.load(new InputStreamReader(io));
+            } catch (FileNotFoundException ex) {
+                Logger.getLogger(FileHandler.class.getName()).log(Level.SEVERE, null, ex);
+            } catch (IOException | InvalidConfigurationException ex) {
+                Logger.getLogger(FileHandler.class.getName()).log(Level.SEVERE, null, ex);
+            }
         } else if (defaultFile != null) {
             LOGGER.log(Level.INFO, "{0} was not found and is being loaded from the default.", filePath);
             io = defaultFile;
+            try {
+                ymlFile.load(new InputStreamReader(io));
+            } catch (IOException | InvalidConfigurationException ex) {
+                Logger.getLogger(FileHandler.class.getName()).log(Level.SEVERE, null, ex);
+            }
         } else {
             LOGGER.log(Level.INFO, "{0} was not found and a default was not provided.", filePath);
             return null;
         }
         
-        ymlFile.load(new InputStreamReader(io));
         return ymlFile;
     }
     
