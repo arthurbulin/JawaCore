@@ -142,4 +142,8 @@ public class Session {
     private String now(){
         return LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
     }
+
+    public String getSessionID() {
+        return SESSIONID;
+    }
 }

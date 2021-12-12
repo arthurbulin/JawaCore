@@ -1,12 +1,18 @@
 package net.jawasystems.jawacore;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.jawasystems.jawacore.debug.DebugCommand;
 import net.jawasystems.jawacore.handlers.ESHandler;
+import net.jawasystems.jawacore.handlers.IndexHandler;
 import net.jawasystems.jawacore.handlers.SessionTrackHandler;
 import net.jawasystems.jawacore.handlers.StandardMessages;
 import net.jawasystems.jawacore.listeners.sessions.PlayerJoinSession;
@@ -16,9 +22,10 @@ import net.jawasystems.jawacore.listeners.sessions.PlayerConsumeEventSession;
 import net.jawasystems.jawacore.listeners.sessions.PlayerDeathSession;
 import net.jawasystems.jawacore.listeners.sessions.PlayerQuitSession;
 import net.jawasystems.jawacore.listeners.sessions.TeleportEventListenerSession;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.Configuration;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.json.JSONObject;
+import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  *
@@ -28,6 +35,8 @@ public class JawaCore extends JavaPlugin {
     public static JawaCore plugin;
     public static boolean debug;
     private static boolean trackSessions;
+    private static boolean trackChat;
+    private static String chatIndexIdentity;
     private static Configuration config;
     private static String serverName;
     
@@ -52,14 +61,6 @@ public class JawaCore extends JavaPlugin {
             getServer().getPluginManager().registerEvents(new PlayerPreJoin(), this);
             getServer().getPluginManager().registerEvents(new PlayerQuitCore(), this);
             
-//            if (!validateIndex("servers")) {
-//                LOGGER.log(Level.INFO, "No servers index was found. One will now be created.");
-//                if (createIndex("servers", null)){
-//                    //Create the entry for this server
-//                    
-//                }
-//            }
-            
             //Validate the players index
             if (!validateIndex("players")){
                 LOGGER.log(Level.INFO, "No players index has been found. All JawaPlugins require a valid players index. Attempting to create.");
@@ -69,11 +70,31 @@ public class JawaCore extends JavaPlugin {
                 }
             }
             
+            Bukkit.getServer().getScheduler().runTaskLater(JawaCore.plugin, () -> {
+                if (trackChat){
+                if (!validateIndex("chatlog-minecraft-"+chatIndexIdentity)) {
+                    LOGGER.log(Level.INFO, "A chat log index (chatlog-minecraft-{0}) could not be found. Chat logging is enabled. Attempting to create/validate the life cycle policy, composable components, index template, and data steam...", chatIndexIdentity);
+                    if(!IndexHandler.createChatLog(chatIndexIdentity)){
+                        LOGGER.log(Level.WARNING,"Unable to create the chat log DataStream. Chat logging will be disabled. See log to correct the errors.");
+                        trackChat = false;
+                    }
+                }
+            } else LOGGER.log(Level.INFO, "This server will not track chat messages.");
+            },30);
+            //Start chat tracking
+            
+            
             //If this server is tracking sessions initialize the needed items and validate the index
             if (trackSessions) startSessiontracking();
             else LOGGER.log(Level.INFO, "This server will not log sessions. To turn on session logging set \"track-sessions\" to \"true\" in the JawaCore config.yml");
             
-
+            try {
+                List<String> list = getResourceFiles("/");
+                System.out.println(list);
+            } catch (IOException ex) {
+                Logger.getLogger(JawaCore.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            
         } else {
             LOGGER.log(Level.SEVERE, "A link to the database was unable to be established. Shutting down server to prevent unmanaged access.");
             plugin.getServer().shutdown();
@@ -98,6 +119,8 @@ public class JawaCore extends JavaPlugin {
         config = this.getConfig();
 
         trackSessions = config.getBoolean("track-sessions", false);
+        trackChat = config.getBoolean("chat-indexing.track-chat", false);
+        chatIndexIdentity = config.getString("chat-indexing.chatlog-index-identity", "main");
         
         debug = config.getBoolean("debug", true);
         if (debug){
@@ -148,6 +171,10 @@ public class JawaCore extends JavaPlugin {
      */
     public static boolean trackSessions(){
         return trackSessions;
+    }
+    
+    private void startChatTracking(){
+        
     }
     
     /** Start tracking sessions. If the index doesn't exist this will create it.
@@ -226,6 +253,43 @@ public class JawaCore extends JavaPlugin {
         
         return response || validateIndex(index);
 
+    }
+    
+    private List<String> getResourceFiles(String path) throws IOException {
+        List<String> filenames = new ArrayList<>();
+
+        try (
+                InputStream in = getResourceAsStream(path);
+                BufferedReader br = new BufferedReader(new InputStreamReader(in))) {
+            String resource;
+
+            while ((resource = br.readLine()) != null) {
+                filenames.add(resource);
+            }
+        }
+
+        return filenames;
+    }
+
+    private InputStream getResourceAsStream(String resource) {
+        final InputStream in
+                = getContextClassLoader().getResourceAsStream(resource);
+
+        return in == null ? getClass().getResourceAsStream(resource) : in;
+    }
+
+    private ClassLoader getContextClassLoader() {
+        return Thread.currentThread().getContextClassLoader();
+    }
+    
+    public static boolean isChatLoggingEnabled(){
+        return trackChat;
+    }
+    /** Return the chat data stream identifier
+     * @return 
+     */
+    public static String chatIndexIdentity(){
+        return chatIndexIdentity;
     }
     
 //    public static void createServerEntry(){

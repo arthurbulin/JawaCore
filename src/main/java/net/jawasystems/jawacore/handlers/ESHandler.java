@@ -6,6 +6,7 @@
 package net.jawasystems.jawacore.handlers;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -36,25 +38,38 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
+import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indices.CreateDataStreamRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
+import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.json.JSONObject;
 
@@ -75,6 +90,8 @@ public class ESHandler {
     private static boolean esDebug;
     private final static String REDMESSAGEPLUG = ChatColor.RED + "> ";
     private final static String GREENMESSAGEPLUG = ChatColor.GREEN + "> ";
+    
+    private final static HashMap<String, String> indices = new HashMap();
 
     /** Initialize the RestHighLevelClient and validate that it can communicate with
      * the ElasticSearch Database.Returns this state and sets the debug value
@@ -89,6 +106,11 @@ public class ESHandler {
     public static boolean startESHandler(String host, int port, String user, String password, boolean debug) {
         eshost = host;
         esport = port;
+        
+        // TODO add a function to read and set the variables for this
+        indices.put("players", "players");
+        indices.put("homes", "homes");
+        indices.put("bans", "bans");
         
         LOGGER.log(Level.INFO, "Starting the ElasticSearch Database rest client on {0}:{1}.", new Object[]{eshost,esport});
         /*
@@ -328,118 +350,24 @@ public class ESHandler {
         });
     }
 
-//    /**
-//     * Executes a multi index search and returns the information in a
-//     * PlayerDataObject.
-//     *
-//     * @param multiSearchRequest
-//     * @param pdObject
-//     * @return
-//     */
-//    public static PlayerDataObject runMultiIndexSearch(MultiSearchRequest multiSearchRequest, PlayerDataObject pdObject) {
-//
-//        try {
-//            MultiSearchResponse mSResponse = restClient.msearch(multiSearchRequest, RequestOptions.DEFAULT);
-//            for (MultiSearchResponse.Item resp : mSResponse.getResponses()) {
-//                //if it isnt a failure add it
-//                if (!resp.isFailure() && (resp.getResponse().getHits().getHits().length == 1)) {
-//                    pdObject.addSearchData(resp.getResponse().getHits().getHits()[0].getIndex(), resp.getResponse().getHits().getHits()[0].getSourceAsMap());
-//                }
-//            }
-//        } catch (IOException ex) {
-//            LOGGER.log(Level.SEVERE, "runMultiIndexSearch has encountred a SEVERE exception. This is likely a database issue.");
-//            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Something severe happend in runMultiIndexSearch!!");
-//            //System.out.println(JawaCore.pluginSlug + handlerSlug + "Exception:");
-//            LOGGER.log(Level.SEVERE, null, ex);
-//        }
-//        return pdObject;
-//    }
-
-    /**
-     * This allows a findOfflinePlayer call that moves player existence checking
-     * to this method. This method is backed by findOfflinePlayer(String
-     * target).
-     *
-     * @param target
-     * @param commandSender
+    /** This will return a PlayerDataObject containing all user data. If the player 
+     * is not found this will return null. 
+     * @param targetUUID A string of the player UUID
      * @return
      */
-    public static SearchHit findOfflinePlayer(String target, CommandSender commandSender) {
-        SearchHit hits = findOfflinePlayer(target);
-        if (hits == null) {
-            commandSender.sendMessage("That target player was not found the Elastic Database. Please be sure to use the exact minecraft name and not their nickname!");
-            return null;
-        } else {
-            return hits;
-        }
-    }
-
-    /**
-     * Will return the UUID of an offline player. If the information is not
-     * found this will return null.
-     *
-     * @param target
-     * @return
-     */
-    public static SearchHit findOfflinePlayer(String target) {
+    public static PlayerDataObject findOfflinePlayer(String targetUUID) { //TODO clean up all fingOfflinePlayer methods
+        
         try {
-            SearchRequest playerSearchRequest = new SearchRequest("players");
-            SearchSourceBuilder playerSearchSourceBuilder = new SearchSourceBuilder();
-
-            playerSearchSourceBuilder.query(QueryBuilders.matchQuery("name", target));
-            playerSearchRequest.source(playerSearchSourceBuilder);
-
-            SearchResponse playerSearchResponse = restClient.search(playerSearchRequest, RequestOptions.DEFAULT);
-
-            if (JawaCore.debug) {
-                LOGGER.log(Level.INFO, "Debug Search Response: {0}", playerSearchResponse);
-                //System.out.print(JawaCore.pluginSlug + handlerSlug + " Search Response: " + playerSearchResponse);
-            }
-            SearchHit[] hits = playerSearchResponse.getHits().getHits();
+            SearchResponse sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "name", targetUUID), RequestOptions.DEFAULT);
+            SearchHit[] hits = sResponse.getHits().getHits();
             if (hits.length != 1) {
-                return null;
+                return null; //If 1 entry is not found then return null.
             }
-
-            return hits[0];
+            return new PlayerDataObject(UUID.fromString(hits[0].getId()),hits[0].getSourceAsMap(),null,null);
         } catch (IOException ex) {
-            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, null, ex);
             return null;
         }
-
-    }
-
-    /**
-     * This will return a PlayerDataObject containing all user data. If the
-     * player is not found this will return null
-     *
-     * @param ident
-     * @param getData
-     * @return
-     */
-    public static PlayerDataObject findOfflinePlayer(String ident, boolean getData) { //TODO clean up all fingOfflinePlayer methods
-        PlayerDataObject pdObject;
-        if (getData) {
-            SearchResponse sResponse;
-            try {
-                sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "name", ident), RequestOptions.DEFAULT);
-                SearchHit[] hits = sResponse.getHits().getHits();
-                if (hits.length != 1) {
-                    return null; //If 1 entry is not found then return null.
-                }
-                pdObject = new PlayerDataObject(UUID.fromString(hits[0].getId()));
-                pdObject.addPlayerData(hits[0].getSourceAsMap());
-            } catch (IOException ex) {
-                Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
-                return null;
-            }
-
-        } else {
-            SearchHit hit = findOfflinePlayer(ident);
-            pdObject = new PlayerDataObject(UUID.fromString(hit.getId()));
-            pdObject.addPlayerData(findOfflinePlayer(ident).getSourceAsMap());
-        }
-        return pdObject;
-
     }
 
     public static boolean singleUpdateRequest(UpdateRequest request) {
@@ -488,7 +416,7 @@ public class ESHandler {
             IndexResponse response = restClient.index(indexRequest, RequestOptions.DEFAULT);
             return true;
         } catch (IOException ex) {
-            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, null, ex);
             return false;
         }
     }
@@ -548,16 +476,31 @@ public class ESHandler {
      * @return PlayerDataObject. If player data is not found null.
      */
     public static PlayerDataObject getPlayerData(String targetUUID) {
+        MultiGetRequest multigetRequest = new MultiGetRequest();
+        multigetRequest.add(indices.get("players"), targetUUID);
+        multigetRequest.add(indices.get("homes"),targetUUID);
+        multigetRequest.add(indices.get("bans"), eshost);
         try {
-            PlayerDataObject pdObject = new PlayerDataObject(UUID.fromString(targetUUID));
-            SearchResponse sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "_id", targetUUID), RequestOptions.DEFAULT);
-            SearchHit[] hits = sResponse.getHits().getHits();
-            if (hits == null || hits.length == 0){
+            MultiGetResponse response = restClient.mget(multigetRequest, RequestOptions.DEFAULT);
+            
+            if (response.getResponses()[0].getResponse().isSourceEmpty()) {
                 return null;
             } else {
-                pdObject.addPlayerData(hits[0].getSourceAsMap());
-                return pdObject;
+                PlayerDataObject pdObject = new PlayerDataObject(UUID.fromString(targetUUID), 
+                        response.getResponses()[0].getResponse().getSourceAsMap(), 
+                        response.getResponses()[1].getResponse().getSourceAsMap(), 
+                        response.getResponses()[2].getResponse().getSourceAsMap());
+                return  pdObject;
             }
+//            PlayerDataObject pdObject = new PlayerDataObject(UUID.fromString(targetUUID));
+//            SearchResponse sResponse = restClient.search(ESRequestBuilder.buildSearchRequest("players", "_id", targetUUID), RequestOptions.DEFAULT);
+//            SearchHit[] hits = sResponse.getHits().getHits();
+//            if (hits == null || hits.length == 0){
+//                return null;
+//            } else {
+//                pdObject.addPlayerData(hits[0].getSourceAsMap());
+//                return pdObject;
+//            }
         } catch (IOException ex) {
             Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
             return null;
@@ -572,26 +515,23 @@ public class ESHandler {
      * @param docValue
      * @param queryValue
      * @return
-     * @throws IOException 
      */
-    public static PlayerDataObject getPlayerData(String index, String docValue, String queryValue) {
-        MultiSearchResponse response;
+    public static PlayerDataObject searchPlayerData(String index, String docValue, String queryValue) {
+        
         try {
-            response = restClient.msearch(ESRequestBuilder.buildSingleMultiSearchRequest(index, docValue, queryValue), RequestOptions.DEFAULT);
+            MultiSearchResponse response = restClient.msearch(ESRequestBuilder.buildSingleMultiSearchRequest(index, docValue, queryValue), RequestOptions.DEFAULT);
             System.out.println(response.getResponses()[0].getResponse().getHits().getHits().length);
             if (response.getResponses().length != 0) {
-                //System.out.println(response.getResponses());
-                Map<String, Object> data = response.getResponses()[0].getResponse().getHits().getHits()[0].getSourceAsMap();
-                UUID uuid = UUID.fromString(response.getResponses()[0].getResponse().getHits().getHits()[0].getId());
-                PlayerDataObject pdObject = new PlayerDataObject(uuid);
-                pdObject.addPlayerData(data);
-                return pdObject;
+                return new PlayerDataObject(UUID.fromString(response.getResponses()[0].getResponse().getHits().getHits()[0].getId()),
+                        response.getResponses()[0].getResponse().getHits().getHits()[0].getSourceAsMap(),
+                        null,
+                        null);
             } else {
-                Logger.getLogger(handlerSlug).log(Level.INFO, "No ElasticSearch entry was found for{0} with a query value of {1} in the {2} index", new Object[]{docValue, queryValue, index});
+                LOGGER.log(Level.INFO, "No ElasticSearch entry was found for{0} with a query value of {1} in the {2} index", new Object[]{docValue, queryValue, index});
                 return null;
             }
         } catch (IOException ex) {
-            Logger.getLogger(ESHandler.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, null, ex);
             return null;
         }
 
@@ -659,5 +599,199 @@ public class ESHandler {
 //
 //        });
     }
+    
+    /** Create a ComponentTemplate. Return true if the response is acknowledged but the user should still
+     * test for successful creation. This will return false if there is an error or if the server does not
+     * acknowledge the request. CAUTION: This runs within the main thread
+     * @param request
+     * @return True if acknowledged. False if not acknowledged or error.
+     */
+    public static boolean createComponentTemplate(PutComponentTemplateRequest request){
+        try {
+            AcknowledgedResponse response = restClient.cluster().putComponentTemplate(request, RequestOptions.DEFAULT);
+            return response.isAcknowledged();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+    
+    /** Validate the existence and version of a component template. CAUTION: This runs within the main thread.
+     * This is backed by checkComponentTemplate(GetComponentTemplatesRequest request, String componentTemplateName, Long version)
+     * @param request GetComponentTemplatesRequest containing componentTemplateName and options
+     * @param componentTemplateName Exact string name of the component template being checked
+     * @return True if the template exists. False in all other cases including errors.
+     */
+    public static boolean checkComponentTemplate(GetComponentTemplatesRequest request, String componentTemplateName){
+        return checkComponentTemplate(request, componentTemplateName, null);
+    }
+    
+    /** Validate the existence and version of a component template. CAUTION: This runs within the main thread.
+     * @param request GetComponentTemplatesRequest containing componentTemplateName and options
+     * @param componentTemplateName Exact string name of the component template being checked
+     * @param version Long version identifier of the component template. can be null and only existence will be checked
+     * @return True if the template exists or the optional version matches. False in all other cases including errors.
+     */
+    public static boolean checkComponentTemplate(GetComponentTemplatesRequest request, String componentTemplateName, Long version){
+        try {
+            ComponentTemplate template;
+            try {
+                GetComponentTemplatesResponse response = restClient.cluster().getComponentTemplate(request, RequestOptions.DEFAULT);
+                template = response.getComponentTemplates().get(componentTemplateName);
+            } catch (ElasticsearchStatusException ex){
+                template = null;
+            }
+            if (template != null ){
+                if (version == null) {
+                    //Validate existance only
+                    return true;
+                } else {
+                    //Validate version
+                    return version.equals(template.version());
+                }
+            } else {
+                //Template does not exist
+                return false;
+            }
+            
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+    
+    /** Create an Index Template. Return true if the response is acknowledged but the user should still
+     * test for successful creation. This will return false if there is an error or if the server does not
+     * acknowledge the request. CAUTION: This runs within the main thread
+     * @param request
+     * @return True if acknowledged. False if not acknowledged or error.
+     */
+    static boolean createIndexTemplate(PutComposableIndexTemplateRequest request) {
+        try {
+            AcknowledgedResponse response = restClient.indices().putIndexTemplate(request, RequestOptions.DEFAULT);
+            return response.isAcknowledged();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+    
+    /** Validate the existence and version of an index template. CAUTION: This runs within the main thread.
+     * This is backed by checkIndexTemplate(GetComposableIndexTemplateRequest request, String indexTemplateName, Long version)
+     * @param request GetComposableIndexTemplateRequest containing index template name and options
+     * @param indexTemplateName Exact string name of the index template being checked
+     * @return True if the template exists or the optional version matches. False in all other cases including errors.
+     */
+    public static boolean checkIndexTemplate(GetComposableIndexTemplateRequest request, String indexTemplateName){
+        return checkIndexTemplate(request, indexTemplateName, null);
+    }
+    
+    /** Validate the existence and version of an index template. CAUTION: This runs within the main thread.
+     * @param request GetComposableIndexTemplateRequest containing index template name and options
+     * @param indexTemplateName Exact string name of the index template being checked
+     * @param version Long version identifier of the index template. can be null and only existence will be checked
+     * @return True if the template exists or the optional version matches. False in all other cases including errors.
+     */
+    public static boolean checkIndexTemplate(GetComposableIndexTemplateRequest request, String indexTemplateName, Long version){
+        try {
+            ComposableIndexTemplate template;
+            try {
+                GetComposableIndexTemplatesResponse response = restClient.indices().getIndexTemplate(request, RequestOptions.DEFAULT);
+                template = response.getIndexTemplates().get(indexTemplateName);
+            } catch (ElasticsearchStatusException ex){
+                template = null;
+            }
+            if (template != null ){
+                if (version == null) {
+                    //Validate existance only
+                    return true;
+                } else {
+                    //Validate version
+                    return version.equals(template.version());
+                }
+            } else {
+                //Template does not exist
+                return false;
+            }
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+    
+    /** Create a Life cycle management policy. Return true if the response is acknowledged but the user should still
+     * test for successful creation. This will return false if there is an error or if the server does not
+     * acknowledge the request. CAUTION: This runs within the main thread
+     * @param request
+     * @return True if acknowledged. False if not acknowledged or error.
+     */
+    static boolean createLifecyclePolicy(PutLifecyclePolicyRequest request) {
+        try {
+            org.elasticsearch.client.core.AcknowledgedResponse response = restClient.indexLifecycle().putLifecyclePolicy(request, RequestOptions.DEFAULT);
+            return response.isAcknowledged();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    }
+    
+    /** Validate the existence and version of a life cycle policy. CAUTION: This runs within the main thread.
+     * This is backed by checkIndexLifeCyclePolicy(GetLifecyclePolicyRequest request, String lifecyclePolicyName, Long version)
+     * @param request GetLifecyclePolicyRequest containing policy name and options
+     * @param lifecyclePolicyName Exact string name of the life cycle policy being checked
+     * @return True if the life cycle policy exists or the optional version matches. False in all other cases including errors.
+     */
+    public static boolean checkIndexLifeCyclePolicy(GetLifecyclePolicyRequest request, String lifecyclePolicyName){
+        return checkIndexLifeCyclePolicy(request, lifecyclePolicyName, null);
+    }
+    
+    /** Validate the existence and version of a life cycle policy. CAUTION: This runs within the main thread.
+     * @param request GetLifecyclePolicyRequest containing policy name and options
+     * @param lifecyclePolicyName Exact string name of the life cycle policy being checked
+     * @param version Long version identifier of the life cycle policy. Can be null and only existence will be checked
+     * @return True if the life cycle policy exists or the optional version matches. False in all other cases including errors.
+     */
+    public static boolean checkIndexLifeCyclePolicy(GetLifecyclePolicyRequest request, String lifecyclePolicyName, Long version){
+        try {
+//            LifecyclePolicyMetadata policy;
+            GetLifecyclePolicyRequest testRequest = new GetLifecyclePolicyRequest("RollingChatLogPolicy");
+            GetLifecyclePolicyResponse response;
+            response = restClient.indexLifecycle().getLifecyclePolicy(testRequest, RequestOptions.DEFAULT);
+            
+            if (!response.getPolicies().isEmpty() && response.getPolicies().containsKey(lifecyclePolicyName)){
+                if (version == null) {
+                    //Validate existance only
+                    return true;
+                } else {
+                    //Validate version
+                    return version.equals(response.getPolicies().get(lifecyclePolicyName).getVersion());
+                }
+            } else {
+                //Template does not exist
+                return false;
+            }
+        } catch (ElasticsearchStatusException | IOException ex) {
+//            System.out.println(response);
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+        
+    }
+    
+    /** Create a data stream. Return true if the response is acknowledged but the user should still
+     * test for successful creation. This will return false if there is an error or if the server does not
+     * acknowledge the request. CAUTION: This runs within the main thread
+     * @param request CreateDataStreamRequest containing name and all needed settings
+     * @return True if acknowledged. False if not acknowledged or error.
+     */
+    public static boolean createDataStream(CreateDataStreamRequest request){
+        try {
+            AcknowledgedResponse response = restClient.indices().createDataStream(request, RequestOptions.DEFAULT);
+            return response.isAcknowledged();
+        } catch (IOException ex) {
+            LOGGER.log(Level.SEVERE, null, ex);
+            return false;
+        }
+    } 
 
 }

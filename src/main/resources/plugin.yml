@@ -1,13 +1,15 @@
 name: JawaCore
 main: net.jawasystems.jawacore.JawaCore
+version: ${pom.version}
 description: 'This plugin contain core libraries for my JawaMods. It does nothing on its own.'
-api-version: 1.16
+author: Jawamaster (Arthur Bulin)
+api-version: 1.17
+
 load: STARTUP
-author: Jawamaster
-website: jawasystems.net
+website: http://jawasystems.net
 prefix: JawaCore
 loadbefore: [JawaPermissions, JawaCommands, JawaChat, JawaToolBox]
-version: 1.0
+
 commands:
   debug:
     description: This command toggles the debug state of the server.

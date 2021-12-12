@@ -88,13 +88,30 @@ public class ESRequestBuilder {
         return sRequest;
     }
     
+    /** Create an index request. This SHOULD be thread safe...
+     * @param index The index where the request is bound
+     * @param id The _id for the document
+     * @param data The source for the request
+     * @return An IndexRequest
+     */
     public static IndexRequest createIndexRequest(String index, String id, JSONObject data){
-        IndexRequest indexRequest = new IndexRequest()
+        return new IndexRequest()
                 .index(index)
                 .id(id)
                 .source(data.toMap());
         
-        return indexRequest;
+        //return indexRequest;
+    }
+    
+    /** Create an index request. This SHOULD be thread safe...
+     * @param index The index where the request is bound
+     * @param data The source for the request
+     * @return An IndexRequest
+     */
+    public static IndexRequest createIndexRequest(String index, JSONObject data){
+        return new IndexRequest()
+                .index(index)
+                .source(data.toMap());
     }
     
     public static DeleteRequest deleteDocumentRequest(String index, String id){

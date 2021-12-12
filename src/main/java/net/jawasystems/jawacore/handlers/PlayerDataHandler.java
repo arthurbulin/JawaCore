@@ -218,7 +218,7 @@ public class PlayerDataHandler {
         Player onlinePlayer = JawaCore.getPlugin().getServer().getPlayer(target);
         PlayerDataObject pdObject = null;
         if (onlinePlayer == null){ //If not online
-            pdObject = ESHandler.findOfflinePlayer(target, true);
+            pdObject = ESHandler.findOfflinePlayer(target);
         } else { //If online. This should never be null then because the player has already been found
             pdObject = ESHandler.getPlayerData(target);
         }

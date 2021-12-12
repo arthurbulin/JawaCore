@@ -8,6 +8,7 @@ package net.jawasystems.jawacore.handlers;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.logging.Logger;
+import net.jawasystems.jawacore.JawaCore;
 import net.jawasystems.jawacore.dataobjects.Session;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -31,6 +32,11 @@ public class SessionTrackHandler {
     private static Session getSession(Player player){
         return SESSIONS.get(player.getUniqueId());
     }
+    
+    private static Session getSession(UUID uuid){
+        return SESSIONS.get(uuid);
+    }
+    
     /** Logs a teleport event in the player's session.
      * @param player
      * @param fromLoc
@@ -66,6 +72,17 @@ public class SessionTrackHandler {
     
     public static void trackConsumption(Player player, ItemStack itemStack){
         getSession(player).consumeItem(itemStack);
+    }
+    
+    public static String getSessionID(Player player){
+        if (JawaCore.trackSessions())
+            return getSession(player).getSessionID();
+        else 
+            return null;
+    }
+    
+    public static String getSessionID(UUID uuid){
+        return getSession(uuid).getSessionID();
     }
     
 }

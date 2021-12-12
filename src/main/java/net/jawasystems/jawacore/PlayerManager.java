@@ -156,7 +156,7 @@ public class PlayerManager {
             }
             return offlinePlayerCache.get(offlineNickNameMap.get(name.toUpperCase().replaceAll(" ", "_")));
         } else {
-            PlayerDataObject pdObject = ESHandler.findOfflinePlayer(name, true);
+            PlayerDataObject pdObject = ESHandler.findOfflinePlayer(name);
             if (pdObject != null) {
                 //pdObject.loadPlayerBanData();
                 offlineCacheAccessTime.put(LocalDateTime.now(), pdObject.getUniqueID());
@@ -359,6 +359,18 @@ public class PlayerManager {
             tmp.add(player.getName());
         });
         return tmp;
+    }
+    
+    /** Install a new player. This will generate the new PlayerDataObject, register the player with
+     * the PlayerManager, and call the info PlayerInfoLoaded event.
+     * @param player The UUID of the player being installed
+     * @param playerName The player name
+     * @param ipAddr The IP Address of the player in string form
+     */
+    public static void installPlayer(UUID player, String playerName, String ipAddr){
+       PlayerDataObject pdo = new PlayerDataObject(player, playerName, ipAddr);
+       addPlayer(player, pdo);
+       pdo.callPlayerInfoLoaded();
     }
 
 }

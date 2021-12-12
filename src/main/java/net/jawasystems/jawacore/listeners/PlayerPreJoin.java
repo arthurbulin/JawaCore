@@ -10,14 +10,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.jawasystems.jawacore.JawaCore;
+import net.jawasystems.jawacore.PlayerManager;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.jawasystems.jawacore.handlers.ESHandler;
-import net.jawasystems.jawacore.utils.ESRequestBuilder;
 import net.jawasystems.jawacore.utils.TimeParser;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
-import org.elasticsearch.action.search.MultiSearchRequest;
 
 /**
  *
@@ -68,13 +67,15 @@ public class PlayerPreJoin implements Listener {
                     } else {
                         //Player join will unban
                         pdObject.banExpired();
-                        pdObject.registerPlayer();
+                        PlayerManager.addPlayer(event.getUniqueId(), pdObject);
+//                        pdObject.registerPlayer();
                         pdObject.onJoinUpdate(event.getName(), event.getAddress().toString());
                     }
                     
                 } else {
                     //register the player
-                    pdObject.registerPlayer();
+                    PlayerManager.addPlayer(event.getUniqueId(), pdObject);
+//                    pdObject.registerPlayer();
                     pdObject.onJoinUpdate(event.getName(), event.getAddress().toString());
                 }
             } catch (Exception e) {
@@ -87,8 +88,9 @@ public class PlayerPreJoin implements Listener {
             }
 
         } else {
-            pdObject = new PlayerDataObject(event.getUniqueId());
-            pdObject.installPlayer(event.getName(), event.getAddress().toString());
+            PlayerManager.installPlayer(event.getUniqueId(), event.getName(), event.getAddress().toString().replaceAll("/", ""));
+//            new PlayerDataObject(event.getUniqueId(), event.getName(), event.getAddress().toString().replaceAll("/", ""));
+//            pdObject.installPlayer(event.getName(), event.getAddress().toString());
         }
     }
 }
