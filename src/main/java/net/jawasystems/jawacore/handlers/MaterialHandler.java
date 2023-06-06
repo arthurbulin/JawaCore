@@ -62,8 +62,8 @@ public class MaterialHandler {
     public static JSONObject packItemStack(ItemStack stack) {
         JSONObject itemStack = new JSONObject();
 
-        itemStack.put("MATERIAL", stack.getType().toString());
-//        itemStack.put("AMOUNT", 1);
+        itemStack.put("material", stack.getType().toString());
+        itemStack.put("quantity", 1);
 
         if (!stack.getEnchantments().isEmpty()) {
 
@@ -71,12 +71,12 @@ public class MaterialHandler {
 
             for (Enchantment enchantment : stack.getEnchantments().keySet()) {
                 JSONObject enchant = new JSONObject();
-                enchant.put("ENCHANT", enchantment.getKey().getKey());
-                enchant.put("LEVEL", stack.getEnchantmentLevel(enchantment));
+                enchant.put("enchant", enchantment.getKey().getKey());
+                enchant.put("level", stack.getEnchantmentLevel(enchantment));
                 enchants.put(enchant);
             }
 
-            itemStack.put("ENCHANTMENTS", enchants);
+            itemStack.put("enchantments", enchants);
         }
         return itemStack;
     }

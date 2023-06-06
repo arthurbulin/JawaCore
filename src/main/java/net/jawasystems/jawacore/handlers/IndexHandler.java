@@ -73,6 +73,7 @@ public class IndexHandler {
     public static boolean createChatLog(String chatIndexIdentity) {
         LOGGER.log(Level.INFO, "Creating a Data Stream of {0}-{1}", new Object[]{COMPONENTNAME, chatIndexIdentity});
         
+        
         //Resolve datastream dependent templates and policies
         if (validateLifeCylePolicy() && validateComponentTemplate() && validateIndexTemplate()) {
             LOGGER.log(Level.INFO, "All DataStream dependent components validated/created");
@@ -262,11 +263,11 @@ public class IndexHandler {
      */
     public static boolean createDataStream(String chatIndexIdentity) {
         //CreateIndexRequest request = new CreateIndexRequest("logs-chat-minecraft");
-        CreateDataStreamRequest request = new CreateDataStreamRequest("chatlog-minecraft-"+chatIndexIdentity);
+        CreateDataStreamRequest request = new CreateDataStreamRequest(ESHandler.getIndexByAction("chatlog"));
         boolean isAcknowledged = ESHandler.createDataStream(request);
         if (isAcknowledged) {
             try {
-                return ESHandler.indexExists("chatlog-minecraft-"+chatIndexIdentity);
+                return ESHandler.indexExists("chatlog");
             } catch (IOException ex) {
                 LOGGER.log(Level.SEVERE, null, ex);
                 return false;

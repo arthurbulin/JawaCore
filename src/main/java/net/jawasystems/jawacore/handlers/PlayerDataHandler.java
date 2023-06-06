@@ -27,15 +27,15 @@ public class PlayerDataHandler {
     
 //    private static final Logger LOGGER = Logger.getLogger("PlayerDataHandler");
     
-    /** Assemble a JSONObject that contains information for that specific ban and returns it in a top level ban object.
-     * @param reason
-     * @param adminUUID
-     * @param console
-     * @param banLength
-     * @param banTime
+    /** Assemble a JSONObject that contains information for that specific ban
+     * @param reason the reason the reason the player is being banned
+     * @param adminUUID the UUID of the admin doing the banning
+     * @param playerUUID the UUID of the player being banned
+     * @param console is this from the console
+     * @param banEndDate the LocalDateTime of when the ban is supposed to end
      * @return
      */
-    public static JSONObject assembleBanData(String reason, UUID adminUUID, boolean console, LocalDateTime banLength){
+    public static JSONObject assembleBanData(String reason, UUID adminUUID, UUID playerUUID, boolean console, LocalDateTime banEndDate){
         //JSONObject topLevelBanObject = new JSONObject();
         JSONObject banData = new JSONObject();
         //String endOfBanDate = assessBanTime(parsedArguments, banTime);
@@ -46,11 +46,13 @@ public class PlayerDataHandler {
         banData.put("banned-by", adminUUID.toString());
         banData.put("via-console", console);     
         
-        banData.put("banned-until", banLength.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        banData.put("banned-until", banEndDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         //banData.put("latest-ban", banTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         
         banData.put("active", true);
         banData.put("ban-lock", false);
+        
+        banData.put("uuid", playerUUID.toString());
         
         //topLevelBanObject.put(banTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), banData);
         return banData;
@@ -100,35 +102,29 @@ public class PlayerDataHandler {
         }  
     }
     
-    /** *  Determine if an ip address is contained within the player's history set.If it isn't then add it and return it.
-     * If it is already in the array then return null.
-     * @param ipAddress
-     * @param ipData
-     * @return 
+    /** Add a new IP address to the player's ip-data list that includes the date 
+     * the IP appeared different than the ip field. This does not check if the IP already
+     * exists in the list.
+     * @param ipAddress the IP address to add
+     * @param ipData the ip-data array to update
      */
-    public static JSONArray ipData(String ipAddress, JSONArray ipData){
-        if (!ipData.toList().contains(ipAddress)) {
-            ipData.put(ipAddress);
-            return ipData;
-        } else {
-            return null;
-        }
+    public static void ipData(String ipAddress, JSONArray ipData){
+        JSONObject newIP = new JSONObject();
+        newIP.put("ip", ipAddress.replace("/", ""));
+        newIP.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        ipData.put(newIP);
     }
     
-    /** Determine if a user's name is already saved in their historical name data.
-     * If it isn't add it and return the JSONArray else it will return null. Should
-     * be executed after checking if saved name does not equal new name.
-     * @param name
-     * @param nameData
-     * @return 
+    /** Create a new name entry in the name-data array that includes the name and date. This does not
+     * check if the entry is there already
+     * @param name the name to add
+     * @param nameData the name-data array to update
      */
-    public static JSONArray nameData(String name, JSONArray nameData){
-        //System.out.println("namdData method:" + nameData);
-        if (!nameData.toList().contains(name)){
-            nameData.put(name);
-            //System.out.println("nameData method:" + nameData);
-            return nameData;
-        } else return null;
+    public static void nameData(String name, JSONArray nameData){
+        JSONObject newNameData = new JSONObject();
+        newNameData.put("name", name);
+        newNameData.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        nameData.put(newNameData);
     }
 
     /** *  Determine if a user's nick is already saved in their historical nick data.

@@ -7,10 +7,12 @@ debug: false
 es-x-security: true
 track-sessions: false
 chat-indexing:
-    track-chat: true
+    track-chat: false
     chatlog-index-identity: main
     log-routed-chat: true
 messages:
     permission-message: "&c > You do not have permission to perform this command. If you believe this is in error please contact your server administrator"
     player-not-found: "&c > Error: That player wasn't found! Try their actual minecraft name instead of nickname"
-    
+index-customization:
+    players: players
+    sessions: sessions

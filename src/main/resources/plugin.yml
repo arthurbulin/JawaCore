@@ -3,7 +3,7 @@ main: net.jawasystems.jawacore.JawaCore
 version: ${pom.version}
 description: 'This plugin contain core libraries for my JawaMods. It does nothing on its own.'
 author: Jawamaster (Arthur Bulin)
-api-version: 1.17
+api-version: 1.18
 
 load: STARTUP
 website: http://jawasystems.net

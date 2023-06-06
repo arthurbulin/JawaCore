@@ -20,6 +20,7 @@ public class TimeParser {
      * requested by the integer listed.
      * default - Month DD, YYYY at HH:MM ZZZZZZZZZZZZ...
      * 1 - MMM DD, YYYY at HH:MM ZZZ
+     * 2 - MMM DD, YYYY
      * @param time
      * @param format
      * @return 
@@ -35,6 +36,11 @@ public class TimeParser {
                     + parsedTime.getHour() + ":"
                     + parsedTime.getMinute() + " "
                     + java.util.TimeZone.getDefault().getDisplayName(false, 0);
+                break;
+            case 2: //MMM DD, YYYY at HH:MM ZZZ
+                hRTime = parsedTime.getMonth().getDisplayName(TextStyle.SHORT, Locale.getDefault()) + " "
+                    + parsedTime.getDayOfMonth() + ", "
+                    + parsedTime.getYear();
                 break;
             default: //Month DD, YYYY at HH:MM ZZZZZZZZZZZZ...
                 hRTime = parsedTime.getMonth().toString() + " "
