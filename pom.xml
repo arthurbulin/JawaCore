@@ -3,14 +3,14 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.jawasystems</groupId>
     <artifactId>JawaCore</artifactId>
-    <version>1.18.X-1.0</version>
+    <version>1.20.X-0.1</version>
     <packaging>jar</packaging>
     
     <build>
         <plugins>
             <plugin>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.3.0</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -38,7 +38,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>2.3.2</version>
+                <version>3.11.0</version>
                 <configuration>
                     <showDeprecation>true</showDeprecation>
                 </configuration>
@@ -65,38 +65,37 @@
     
     <dependencies>
         <dependency>
-            <groupId>org.spigotmc</groupId>
-            <artifactId>spigot-api</artifactId>
-            <version>1.18.1-R0.1-SNAPSHOT</version>
-            <scope>provided</scope>
+            <groupId>io.papermc.paper</groupId>
+            <artifactId>paper-api</artifactId>
+            <version>1.20.4-R0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
             <artifactId>elasticsearch-rest-high-level-client</artifactId>
-            <version>7.15.0</version>
+            <version>7.17.15</version>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpcore</artifactId>
-            <version>4.4.14</version>
+            <version>4.4.16</version>
             <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20201115</version>
+            <version>20230227</version>
         </dependency>
         <dependency>
             <groupId>org.javacord</groupId>
             <artifactId>javacord</artifactId>
-            <version>3.3.2</version>
+            <version>3.8.0</version>
             <type>pom</type>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.maxmind.geoip2</groupId>
             <artifactId>geoip2</artifactId>
-            <version>2.15.0</version>
+            <version>4.0.1</version>
         </dependency>
 
     </dependencies>
