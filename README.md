@@ -11,10 +11,8 @@ JawaCore resolves use pre-join identificaiton vs bans, logs user session activit
 git clone https://github.com/arthurbulin/JawaCommands
 ```
 2. Either open the project in Netbeans and build with the Maven plugin or build from the CLI. NOTE: I never build from the CLI because I'm lazy.
-3. You need the Elastic Search Database installed. Currently .
-4. You will need to initialize the Elastic Search indexes for the plugin. To do this you need another Java application I have written, but not yet put on GitHub. Once it is up there you can create a proper index.
 
-### Prerequisites
+## Prerequisites
 
 You will need 
     - Maven to build the plugin
@@ -22,7 +20,10 @@ You will need
     - ElasticSearch (7.15.0 is the current version)
     - Minecraft server running on Paper/Spigot (Paper is prefered and I will probably not support Spigot by the end of 1.20 support)
 
-### Installing
+## Installing
+
+[!IMPORTANT]
+This will actually not work!! When you complete the build a libs folder will be generated and that also needs placed in the plugins folder. OR you can alter the build target to create a fat Jar with the libs inside it. These libs are the dependencies needed from 3rd party libraries (e.x. json parser, elasticsearch, yaml parser, etc).
 
 1. Place the JawaCore-1.20.X-#.#.jar into the server's plugin folder and start the server. Needed configuration files will be created.
 2. Shutdown your server
@@ -30,7 +31,7 @@ You will need
 4. Restart your server. If you have any malformed config files the server will let you know, although I cannot guarantee how enlightening what it tells you will be.
 #5. When you join the server it should inform you that you have been installed. This means it's working. Every time you join after that it will inform you that you have been loaded.
 
-## Configuration Parameters
+### Configuration Parameters
 Within the JawaCore folder you will find a config.yml file. This config must be strictly YAML formatted or it may fail to load and will be overwritten.
 
 * server-name: \<Arbitrary string to identify this server instance\>
@@ -58,7 +59,7 @@ Within the JawaCore folder you will find a config.yml file. This config must be 
   * players: \<arbitrary string, no spaces please\>
     - This is the index name that will be used by the plugins to store player data. I recommend naming it players-<minecraft version> i.e. players-120. So that in the future you can keep database versions seperate if I change the schema. Although if I do I'll try to ensure the update is automatic but up to this point, it is NOT.
   * sessions: \<arbitrary string, np spaces please\>
-  * - This is the index name that will be used by the plugins to store player session data. I recommend naming it sessions-<minecraft version> i.e. sessions-120. So that in the future you can keep database versions seperate if I change the schema. Although if I do I'll try to ensure the update is automatic but up to this point, it is NOT.
+    - This is the index name that will be used by the plugins to store player session data. I recommend naming it sessions-<minecraft version> i.e. sessions-120. So that in the future you can keep database versions seperate if I change the schema. Although if I do I'll try to ensure the update is automatic but up to this point, it is NOT.
 
 ## Commands and Permissions
 
