@@ -20,6 +20,7 @@ public class TimeParser {
      * requested by the integer listed.
      * default - Month DD, YYYY at HH:MM ZZZZZZZZZZZZ...
      * 1 - MMM DD, YYYY at HH:MM ZZZ
+     * 2 - MMM DD, YYYY
      * @param time
      * @param format
      * @return 
@@ -35,6 +36,11 @@ public class TimeParser {
                     + parsedTime.getHour() + ":"
                     + parsedTime.getMinute() + " "
                     + java.util.TimeZone.getDefault().getDisplayName(false, 0);
+                break;
+            case 2: //MMM DD, YYYY at HH:MM ZZZ
+                hRTime = parsedTime.getMonth().getDisplayName(TextStyle.SHORT, Locale.getDefault()) + " "
+                    + parsedTime.getDayOfMonth() + ", "
+                    + parsedTime.getYear();
                 break;
             default: //Month DD, YYYY at HH:MM ZZZZZZZZZZZZ...
                 hRTime = parsedTime.getMonth().toString() + " "
@@ -59,9 +65,9 @@ public class TimeParser {
         return getHumanReadableDateTime(time, 0);
     }
 
-    /** Takes a LocalDateTime converted to a string and outputs false if that LocalDateTime is 
-     * after the current time. I.E. false if in the past. true 
-     * @param to
+    /** *  Takes a LocalDateTime converted to a string and outputs false if that LocalDateTime is 
+     * after the current time.I.E.false if in the past. true
+     * @param time
      * @return 
      */
     public static boolean inPast(String time) {

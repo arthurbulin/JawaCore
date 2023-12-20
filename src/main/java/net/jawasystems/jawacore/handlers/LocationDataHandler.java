@@ -96,6 +96,20 @@ public class LocationDataHandler {
         }
         
     }
+    
+    /** This will attempt to unpack a rawLocation of the format x,y,z,yaw,pitch into a valid location.
+     * @param rawLocation the x,y,z,yaw,pitch
+     * @param world
+     * @return 
+     */
+    public static Location getLocation(String[] rawLocation, World world){
+        try {
+            Location newLoc = new Location(world, Double.valueOf(rawLocation[0]), Double.valueOf(rawLocation[1]), Double.valueOf(rawLocation[2]), Float.valueOf(rawLocation[3]), Float.valueOf(rawLocation[4]));
+            return newLoc;
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException e){
+            return null;
+        }
+    }
 //    
 //    public static void addToBackStack(Player player, Location location){
 //        JSONObject playerBackData = JawaCommands.getBackStack(player.getUniqueId());

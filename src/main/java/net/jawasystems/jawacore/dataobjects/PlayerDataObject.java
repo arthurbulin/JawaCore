@@ -20,9 +20,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -32,21 +32,19 @@ import net.jawasystems.jawacore.PlayerManager;
 import net.jawasystems.jawacore.events.PlayerInfoLoaded;
 import net.jawasystems.jawacore.events.PlayerRankChange;
 import net.jawasystems.jawacore.handlers.ESHandler;
+import net.jawasystems.jawacore.handlers.LocationDataHandler;
 import net.jawasystems.jawacore.handlers.PlayerDataHandler;
-import static net.jawasystems.jawacore.handlers.PlayerDataHandler.handlerSlug;
-import static net.jawasystems.jawacore.handlers.PlayerDataHandler.ipData;
-import static net.jawasystems.jawacore.handlers.PlayerDataHandler.nameData;
 import net.jawasystems.jawacore.utils.ESRequestBuilder;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
-import org.bukkit.command.CommandSender;
+import org.bukkit.Location;
+import org.bukkit.Server;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.MultiSearchResponse.Item;
-import org.elasticsearch.search.SearchHit;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
@@ -56,110 +54,264 @@ import org.json.JSONObject;
 public class PlayerDataObject {
 
     private static final Logger LOGGER = Logger.getLogger("PlayerDataObject");
-    private UUID player;
-    private JSONObject banData;
+//    private final HashMap<String,HomeObject> HOMELIST = new HashMap();
+    private final UUID PLAYER;
+    private Map<String, JSONObject> banData;
     private JSONObject playerData;
-    private JSONObject homeData;
+    private Map<String, JSONObject> homeData;
+    private Map<String, String> homeDataNames;
 
     private UUID privateConversation;
 
     private ChatColor rankColor;
+    
+    private final HashMap<String, JSONObject> ZONEPERMISSIONS = new HashMap();
 
-    public PlayerDataObject(UUID player) {
-        this.player = player;
-        //This should ensure that all objects are initialized, this way even if they are empty they wont' error
-        playerData = new JSONObject();
-        banData = new JSONObject();
-        homeData = new JSONObject();
-        privateConversation = null;
-    }
-
-    public void addBanData(Map banData) {
-        this.banData = new JSONObject(banData);
-    }
-
-    public void addPlayerData(Map playerData) {
-        this.playerData = new JSONObject(playerData);
-    }
-
-    public void addHomeData(Map homeData) {
-        this.homeData = new JSONObject(homeData);
-    }
-
-    public String getPlayerUUID() {
-        return player.toString();
-    }
-
-    /**
-     * Adds Data from an ES search. The index will specify what kind of data is
-     * being received.
-     *
-     * @param index - players, bans, or homes
-     * @param data
+    /** Build a player data object and add all data. This is for an existing player.
+     * @param player The UUID for the player
+     * @param playerData The player data for this should not be empty or null
+     * @param banData The ban data for this player. This can be null or an empty map for a player with no bans
+     * @param homeData The home data for this player. This can be null or an empty map for a player with no bans
      */
-    public void addSearchData(String index, Map data) {
-        switch (index) {
-            case "players": {
-                this.playerData = new JSONObject(data);
-                break;
-            }
-            case "bans": {
-                this.banData = new JSONObject(data);
-                break;
-            }
-            case "homes": {
-                this.homeData = new JSONObject(data);
-                break;
+    public PlayerDataObject(UUID player, Map<String, Object> playerData, Map<String, JSONObject> banData, Map<String, JSONObject> homeData) {
+        //Set the player's UUID
+        this.PLAYER = player;
+        
+        //Install the player's data
+        this.playerData = new JSONObject(playerData);
+
+        
+        //Install the player's ban data
+        if (banData == null || banData.isEmpty()){
+            this.banData = new HashMap();
+        } else {
+            this.banData =  banData;
+        }
+        
+        //Install the player's home data
+        if (homeData == null || homeData.isEmpty()){
+            this.homeData = new HashMap();
+            this.homeDataNames = new HashMap();
+        } else {
+            this.homeData = homeData;
+            this.homeDataNames = new HashMap();
+            for (String homeID : homeData.keySet()){
+                this.homeDataNames.put(homeData.get(homeID).getString("name"), homeID);
             }
         }
+        privateConversation = null;
+        //buildHomeList();
+    }
+    
+    /** Build a player data object for a new player. This will install the player into 
+     * the elasticsearch database as well.
+     * @param player
+     * @param playerName
+     * @param ipAddr 
+     */
+    public PlayerDataObject (UUID player, String playerName, String ipAddr) {
+        this.PLAYER = player;
+        this.playerData = new JSONObject();
+        this.banData = new HashMap();
+        this.homeData = new HashMap();
+        this.homeDataNames = new HashMap();
+        installPlayer(playerName, ipAddr);
     }
 
-    public JSONObject getPlayerData() {
-        return playerData;
+
+    /** Add player data to the object. If the item is null it will not be added.
+     * @param banData The ban data for this player. This can be null or an empty map for a player with no bans
+     * @param homeData The home data for this player. This can be null or an empty map for a player with no bans
+     */
+    public void addPlayerData(Map<String,JSONObject> banData,Map<String,JSONObject> homeData) {
+
+        //Install the player's ban data
+        if (banData != null && !banData.isEmpty()){
+            this.banData = banData;
+        }
+        
+        //Install the player's home data
+        if (homeData != null && !homeData.isEmpty()){
+            this.homeData = homeData;
+            for (String homeID : homeData.keySet()){
+                this.homeDataNames.put(homeData.get(homeID).getString("name"), homeID);
+            }
+        }
+         
+    }
+    
+    /** Add the server specific JSONobject to the home-data
+     */
+//    private void addServerHomeObject(){
+////        this.homeData.isEmpty()
+//        playerData.getJSONObject("home-data").put(JawaCore.getServerName().toLowerCase(), new JSONObject());
+//    }
+    
+//    public void addHomeData(Map homeData) {
+//        //this.homeData = new JSONObject(homeData);
+//    }
+
+    /** Returns the player's UUID in string form.
+     * @return 
+     */
+    public String getPlayerUUID() {
+        return PLAYER.toString();
     }
 
+//    /** Return the entire player data JSONObject.
+//     * @return All of the player Data in JSONObject form.
+//     */
+//    public JSONObject getPlayerData() {
+//        return playerData;
+//    }
+
+    /** Returns true if the player has any ban data. This may be current or historical bans
+     * across any server.
+     * @return True if there are any ban records. False if there are none.
+     */
     public boolean containsBanData() {
+//        return !playerData.getJSONArray("ban-data").isEmpty();
         return !banData.isEmpty();
     }
 
-    public boolean containsPlayerData() {
-        return !playerData.isEmpty();
-    }
+//    public boolean containsPlayerData() {
+//        return !playerData.isEmpty();
+//    }
 
+    /** Returns true if the player's data contains home info for the server.
+     * @return True if the playerdata contains home data for the server
+     */
     public boolean containsHomeData() {
         return !homeData.isEmpty();
+//        return !playerData.getJSONObject("home-data").isEmpty() || playerData.getJSONObject("home-data").has(JawaCore.getServerName().toLowerCase());
     }
 
+    /** Is this user online.
+     * @return True if the user is online on this server. False otherwise.
+     */
     public boolean isOnline() {
-        if (Bukkit.getServer().getPlayer(player) != null) {
+        if (Bukkit.getServer().getPlayer(PLAYER) != null) {
             return true;
         } else {
             return false;
         }
     }
 
+    /** Return the player object.
+     * @return the player object, null if the player is not online
+     */
     public Player getPlayer() {
-        return Bukkit.getServer().getPlayer(player);
+        return Bukkit.getServer().getPlayer(PLAYER);
     }
 
     //##########################################################################
     //#   Player ban gets
     //##########################################################################
-    public String getLatestBanDate() {
-        if (playerData.has("current-ban")) return (String) playerData.get("current-ban"); //FIXME this is to deal with a typo in the legacy ban data in the repo
-        else return (String) playerData.get("latest-ban");
+//    private void buildBanSort(){
+//        LocalDateTime latest = 
+//        for (Object banEntry : playerData.getJSONArray("ban-data")){
+//            ((JSONObject) banEntry).getString("date");
+//        }
+//    }
+    
+    /** Checks if the id given exists within the ban data
+     * @param id the ban id
+     * @return true if present within the ban data, false otherwise
+     */
+    public boolean isBanIDValid(String id){
+        return banData.containsKey(id);
+    }
+    /** Returns a string representation of the player's latest ban datetime. This is a string representation
+     * of a LocalDateTime with ISO_LOCAL_DATE_TIME formatting. Will return null if there are no ban entries or
+     * the date entry is malformed
+     * @return 
+     */
+    public String getLatestActiveBanDate() {
+        JSONObject latestBan = getLatestActiveBanEntry();
+        if (latestBan == null) return null;
+        else return latestBan.getString("date");
+    }
+    
+    /** Returns a JSONObject with the latest date key from the player's ban data array.
+     * @return JSONObject with all ban data for the most recent ban.
+     */
+    public JSONObject getLatestActiveBanEntry() {
+        if (banData.isEmpty()) return null;
+        
+        LocalDateTime latestDate = LocalDateTime.MIN;
+        JSONObject latestEntry = null;
+        for (JSONObject banEntry : banData.values()){
+            if (!banEntry.getBoolean("active")) continue;
+            String datetime = banEntry.getString("date");
+            LocalDateTime test = LocalDateTime.parse(datetime);
+            if (test.isAfter(latestDate)) {
+              latestDate = test;
+              latestEntry = banEntry;
+            }
+        }
+        return latestEntry;
+    }
+    
+    /** Returns the id of the player's latest ban
+     * @return string id of the player's latest ban
+     */
+    public String getLatestActiveBanID() {
+//        LOGGER.log(Level.INFO, "empty:" + banData.isEmpty());
+        if (banData.isEmpty()) return null;
+        
+        LocalDateTime latestDate = LocalDateTime.MIN;
+        String latestID = null;
+        for (String banID : banData.keySet()){
+            if (!banData.get(banID).getBoolean("active")) continue;
+            String datetime = banData.get(banID).getString("date");
+            LocalDateTime test = LocalDateTime.parse(datetime);
+            if (test.isAfter(latestDate)) {
+              latestDate = test;
+              latestID = banID;
+            }
+        }
+        return latestID;
+    }
+    
+
+    /** Returns a ban entry corresponding to the input date. If one is not found this returns null.
+     * @param banDateTime String formatted localdatetime using ISO_LOCAL_DATE_TIME.
+     * @return The JSONObject representing the datetime of the ban
+     */
+    public JSONObject getBanEntry(String banDateTime) {
+        JSONObject banEntry = null;
+        for (JSONObject entry : banData.values()) {
+            if (entry.getString("date").equals(banDateTime)){
+                banEntry = entry;
+            }
+        }
+        return banEntry;
+        //return banData.getJSONObject(banDateTime);
+    }
+    
+    /** Returns the JSONObject ban object requested
+     * @param id
+     * @return 
+     */
+    public JSONObject getBanEntryByID(String id) {
+        return banData.get(id);
     }
 
-    private JSONObject getBanEntry(String banDateTime) {
-        return banData.getJSONObject(banDateTime);
-    }
-
+    /** Returns the reason for a ban on the specified LocalDateTime
+     * @param banDateTime The string representation of LocalDateTime ban identifier formatted with ISO_LOCAL_DATE_TIME.
+     * @return 
+     */
     public String getBanReason(String banDateTime) {
-        return (String) getBanEntry(banDateTime).get("reason");
+        return getBanEntry(banDateTime).getString("reason");
     }
 
+    /** Return the string form of the UUID that banned the user. This should never be null. If 
+     * the person was banned by the system then the uuid returned is 00000000-0000-0000-0000-000000000000.
+     * @param banDateTime String form of the LocalDateTime that the user was banned in the ISO_LOCAL_DATE_TIME format.
+     * @return 
+     */
     public String getBannedBy(String banDateTime) {
-        return (String) getBanEntry(banDateTime).get("banned-by");
+        return getBanEntry(banDateTime).getString("banned-by");
     }
 
     /** Return a string form of the "banned-until" this should be a LocalDateTime
@@ -171,42 +323,86 @@ public class PlayerDataObject {
         return getBanEntry(banDateTime).getString("banned-until");
     }
     
+    /** Returns the LocalDateTime in string form with ISO_LOCAL_DATE_TIME formatting for the 
+     * latest ban entry.
+     * @return 
+     */
     public String isBannedUntil(){
-        return getBannedUntil(getLatestBanDate());
+        return getLatestActiveBanEntry().getString("banned-until");
+//        return getBannedUntil(getLatestActiveBanDate());
     }
 
+    /** Returns the string of the unban reason for the specified ban
+     * @param banDateTime The String representing the ban date time
+     * @return the reason for unban in string form
+     */
     public String getBannedUnreason(String banDateTime) {
-        return (String) getBanEntry(banDateTime).get("unreason");
+        return getBanEntry(banDateTime).getString("unreason");
     }
 
+    /** Returns the String version of the UUID of the staff who unbanned the player. This will be 00000000-0000-0000-0000-000000000000
+     * for a system user (i.e. ban expiration)
+     * @param banDateTime String version of the ban LocalDateTime in the ISO_LOCAL_DATE_TIME format
+     * @return String representation of the UUID of the staff who unbanned the player
+     */
     public String getBannedUnBy(String banDateTime) {
-        return (String) getBanEntry(banDateTime).get("unbanned-by");
+        return getBanEntry(banDateTime).getString("unbanned-by");
     }
 
+    /** Returns the String form of the LocalDatetTime of when the ban was reversed.
+     * @param banDateTime The String representation of the ban date time in the ISO_LOCAL_DATE_TIME format
+     * @return the String version of the LocalDateTime when the user was unbanned
+     */
     public String unbannedOn(String banDateTime) {
-        return (String) getBanEntry(banDateTime).get("unbanned-on");
+        return getBanEntry(banDateTime).getString("unbanned-on");
     }
     
+    /** Returns true if the user is ban locked by a server owner.
+     * @return True if the user cannot be unbanned until the ban lock is lifted. False if not banlocked
+     */
     public boolean isBanLocked(){
-        if (getLatestBan().has("ban-lock")){
-            return getLatestBan().getBoolean("ban-lock");
-        } else return false;
+        for (JSONObject ban : banData.values()) {
+            if (ban.getBoolean("active") && ban.getBoolean("ban-lock")) {
+                return true;
+            }
+        }
+        return false;
+//        if (getLatestActiveBanEntry().has("ban-lock")){
+//            return getLatestActiveBanEntry().getBoolean("ban-lock");
+//        } else return false;
     }
     
+    /** Get the UUID of the owner who has ban locked the user
+     * @return String of the UUID of the owner who ban locked the user. null if the user is not ban locked
+     */
     public String getBanLockAdmin(){
-        UUID adminUUID = UUID.fromString(getLatestBan().getString("ban-lock-by"));
-        return PlayerManager.getPlayerDataObject(adminUUID).getFriendlyName();
+        for (JSONObject ban : banData.values()) {
+            if (ban.getBoolean("active") && ban.getBoolean("ban-lock")) {
+                return ban.getString("ban-lock-by");
+            }
+        }
+        return null;
+        //UUID adminUUID = UUID.fromString(getLatestActiveBanEntry().getString("ban-lock-by"));
+//        return PlayerManager.getPlayerDataObject(adminUUID).getFriendlyName();
     }
     
+    /** Get the reason a user was ban locked by an owner.
+     * @return The string reason for the ban lock reason. Null if the user is not ban-locked or there is no reason.
+     */
     public String getBanLockReason(){
-        return getLatestBan().getString("ban-lock-reason");
+        for (JSONObject ban : banData.values()) {
+            if (ban.getBoolean("active") && ban.getBoolean("ban-lock")) {
+                return ban.getString("ban-lock-reason");
+            }
+        }
+        return null;
     }
     /** Is a particular ban active.
      * @param banDateTime
      * @return 
      */
     public boolean getBanState(String banDateTime) {
-        return Boolean.valueOf((String) getBanEntry(banDateTime).get("active"));
+        return getBanEntry(banDateTime).getBoolean("active");
     }
 
     /** Was the player banned via console.
@@ -225,88 +421,112 @@ public class PlayerDataObject {
         return getBanEntry(banDateTime).getBoolean("unbanned-via-console");
     }
 
-    /** Returns a set of the keys relating to bans.
+    /** Returns a JSONArray with the dates of all bans as strings.
      * @return 
      */
-    public Set getListOfBans() {
-        return banData.keySet();
+    public HashSet getListOfBans() {
+        HashSet tmp = new HashSet();
+        for (JSONObject entry : banData.values()){
+            tmp.add(entry.getString("date"));
+        }
+        //return banData.keySet();
+        return tmp;
     }
     
-    public JSONObject getBanData(){
-        return banData;
+    /** Return a new Map of the ban entries. This is a copy and may be mutated as needed
+     * @return 
+     */
+    public Map<String,JSONObject> getBanData(){
+        return new HashMap(banData);
     }
 
     /** Bans a player.
-     * @param commandSender - Command Sender of the ban command
-     * @param parsedArguments - Arguments containing the reason and if needed b (by) flag if from the console
-     * @param banDate - LocalDateTime of the ban. Usually LocalDateTime.now()
+     * @param reason
+     * @param adminUUID
+     * @param console
+     * @param banLength
      */
-    public void banPlayer(CommandSender commandSender, HashMap<String, String> parsedArguments, LocalDateTime banDate) { //TODO need to move the commandSender to PlayerDataObject
-        if (!containsBanData()) banData = new JSONObject();
-        banData.put(banDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), PlayerDataHandler.assembleBanData(commandSender, parsedArguments, banDate));
-        
-        playerData.put("banned", true);
-        playerData.put("latest-ban", banDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        
-        updatePlayerDataAsync();
-        updatePlayerBanDataAsync();
+    public void banPlayer(String reason, UUID adminUUID, boolean console, LocalDateTime banLength) {
+        JSONObject newBan = PlayerDataHandler.assembleBanData(reason, adminUUID, PLAYER, console, banLength);
+        ESHandler.asyncDataIndexWithIDReturn("bans", newBan);
+    }
+    
+    /** Accepts a newly index ban id and JSONObject and integrates it into the list.
+     * @param id
+     * @param newBan 
+     */
+    public void returnBanID(String id, JSONObject newBan){
+        banData.put(id, newBan);
     }
     
     /** Unbans a player.
-     * @param admin - The PlayerDataObject of the admin performing the ban.
-     * @param parsedArguments - The HashMap containing the the required information for unban data (reason)
-     * @param unbanDateTime - LocalDateTime object of the unban. Usually LocalDateTime.now()
+     * @param unreason
+     * @param adminUUID
+     * @param console
      */
-    public void unbanPlayer(PlayerDataObject admin, HashMap<String, String> parsedArguments, LocalDateTime unbanDateTime){
-        banData.put(getLatestBanDate(), PlayerDataHandler.assembleUnBanData(admin, parsedArguments, unbanDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
-        playerData.put("banned", false);
-        updatePlayerDataAsync();
-        updatePlayerBanDataAsync();
-    }
-    
-    /** Run's a search request for an entry in the bans index with _id matching the player's 
-     * UUID. If no result is found then they player's ban data is initialized with a blank object.
-     */
-    public void loadPlayerBanData(){
-        try {
-            SearchHit[] hits = ESHandler.runSearchRequest(ESRequestBuilder.buildSearchRequest("bans", "_id", player.toString()));
-            banData = new JSONObject(hits[0].getSourceAsMap());
-        } catch (Exception e){
-            banData = new JSONObject();
+    public void unbanPlayer(String unreason, UUID adminUUID, boolean console){
+        String id = "";
+        for (String banID : banData.keySet()){
+            if (banData.get(banID).getBoolean("active")){
+                //Update by pass not copy?? 
+                PlayerDataHandler.assembleUnBanData(unreason, adminUUID, console, banData.get(banID));
+                id = banID;
+//                banData.put(id, unBanData);
+                break;
+            }
         }
+        
+        if (!id.equals("")) updateBanDataAsync(id);
+        //Does nothing if called and there's no ban to undo
     }
-    
-    /** Gets the latest ban as a JSONObject. This gets the player's latest ban data
-     * whether they are still banned or not.
-     * @return 
+
+    /** Given a string, gets the id'd ban and updates it.
+     * @param id The id of the ban
+     * @param reason - The string reason that updates the ban.
+     * @param updater
      */
-    public JSONObject getLatestBan() {
-        return getBanEntry(getLatestBanDate());
-    }
-    
-    /** Given a string, get's the latest ban and updates it.
-     * @param reason - The string reason that updates the latest ban.
-     */
-    public void updateBan(String reason){
-        banData.put(getLatestBanDate(), getLatestBan().put("reason", reason));
-        updatePlayerBanDataAsync();
-    }
-    
-    public void banExpired() {
-        JSONObject expireData = PlayerDataHandler.assembleExpiredUnBanData();
-        for (String key : expireData.keySet()) {
-            banData.getJSONObject(getLatestBanDate()).put(key, expireData.get(key));
+    public void updateBan(String id, String reason, String updater){
+        
+        JSONObject updateData = new JSONObject();
+        updateData.put("update-by", updater);
+        updateData.put("update-date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        updateData.put("original-reason", banData.get(id).get("reason"));
+        updateData.put("new-reason", reason);
+        
+        banData.get(id).put("reason", reason);
+        if (!banData.get(id).has("update-data")) {
+            banData.get(id).put("update-date", new JSONArray());
+        } 
+        
+        //See if this is the first time the ban data is being updated
+        if (banData.get(id).has("update-data")) {
+            banData.get(id).getJSONArray("update-data").put(updateData);
+        } else {
+            banData.get(id).put("update-data", new JSONArray());
+            banData.get(id).getJSONArray("update-data").put(updateData);
         }
-        playerData.put("banned", false);
-        updatePlayerDataAsync();
-        updatePlayerBanDataAsync();
-        scheduleMessage(ChatColor.GREEN + " > " + ChatColor.YELLOW + "Your current ban has expired. Please remember to behave yourself.", 40);
-        Bukkit.broadcast(ChatColor.YELLOW + " > !!!! " + getFriendlyName() + ChatColor.YELLOW + " !!!! has been auto unbanned due to ban expiration.", "jawachat.opchat");
+
+        updateBanDataAsync(id);
+    }
+    
+    /** trigger the needed events when a ban expires
+     * @param id
+     */
+    public void banExpired(String id) {
+        PlayerDataHandler.assembleExpiredUnBanData(banData.get(id));
+        updateBanDataAsync(id);
+        scheduleMessage(ChatColor.GREEN + "> " + ChatColor.YELLOW + "Your current ban has expired. Please remember to behave yourself.", 40);
+        //  FIXME Need to queue up notifications for staff
+//        Bukkit.getServer().broadcastMessage(ChatColor.YELLOW + " > !!!! " + getFriendlyName() + ChatColor.YELLOW + " !!!! has been auto unbanned due to ban expiration.");
+        Bukkit.broadcast(ChatColor.YELLOW + "> !!!! " + getFriendlyName() + ChatColor.YELLOW + " !!!! has been auto unbanned due to ban expiration.", Server.BROADCAST_CHANNEL_ADMINISTRATIVE);
     }
 
     //##########################################################################
     //#   Player data gets
     //##########################################################################
+    /** Returns the player rank
+     * @return the player's rank
+     */
     public String getRank() {
         return playerData.getString("rank");
     }
@@ -315,9 +535,9 @@ public class PlayerDataObject {
      * has no existing rank change data then null is returned.
      * @return 
      */
-    public JSONObject getRankData() {
+    public JSONArray getRankData() {
         if (playerData.has("rank-data")) {
-            return playerData.getJSONObject("rank-data");
+            return playerData.getJSONArray("rank-data");
         } else {
             return null;
         }
@@ -327,7 +547,7 @@ public class PlayerDataObject {
      * @return 
      */
     public UUID getUniqueID() {
-        return player;
+        return PLAYER;
     }
 
     /** Changes the player's rank and records the UUID of admin, time, new, and old ranks.
@@ -338,10 +558,11 @@ public class PlayerDataObject {
      */
     public void setRank(String newRank, UUID adminUUID, ChatColor rankColor) {
         newRank = newRank.toLowerCase();
-        playerData.put("rank-data", PlayerDataHandler.createPlayerRankChangeData(getRank(), newRank, adminUUID.toString()));
+        playerData.getJSONArray("rank-data").put(PlayerDataHandler.createPlayerRankChangeData(getRank(), newRank, adminUUID.toString()));
+        
         playerData.put("rank", newRank);
         setRankColor(rankColor);
-        Bukkit.getServer().getPluginManager().callEvent(new PlayerRankChange(player, newRank));
+        Bukkit.getServer().getPluginManager().callEvent(new PlayerRankChange(PLAYER, newRank));
         //sendMessageIf(ChatColor.GREEN + " > Your rank has been changed to " + newRank);
         updatePlayerDataAsync();
     }
@@ -366,80 +587,93 @@ public class PlayerDataObject {
      */ //TODO Add minecraft account name tracking
     private void updateName(String name) {
         if (!getName().equals(name)) {
-            setName(getPlayer().getName());
+            setName(name);
         }
     }
 
     public int getPlayTime() {
-        return (int) playerData.get("play-time");
+        return playerData.getInt("play-time");
     }
 
     public LocalDateTime getLastLogin() {
-        return LocalDateTime.parse((String) playerData.get("last-login"));
+        return LocalDateTime.parse(playerData.getString("last-login"));
     }
 
     public void setLastLogin() {
         playerData.put("last-login", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        Logger.getLogger(PlayerDataObject.class.getName()).log(Level.FINEST, "Recording last login date for player: {0} as {1}", new Object[]{player.toString(), LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)});
+        LOGGER.log(Level.FINEST, "Recording last login date for player: {0} as {1}", new Object[]{PLAYER.toString(), LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)});
     }
 
     public LocalDateTime getLastLogout() {
-        return LocalDateTime.parse((String) playerData.get("last-logout"));
+        return LocalDateTime.parse(playerData.getString("last-logout"));
     }
 
     public void setLastLogout() {
         playerData.put("last-logout", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        Logger.getLogger(PlayerDataObject.class.getName()).log(Level.FINEST, "Recording last logout date for player: {0} as {1}", new Object[]{player.toString(), LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)});
+        LOGGER.log(Level.FINEST, "Recording last logout date for player: {0} as {1}", new Object[]{PLAYER.toString(), LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)});
     }
 
-    public JSONArray getIPArray() {
-        return playerData.getJSONArray("ips");
-    }
 
-    public void setIPArray(JSONArray ipData) {
-        playerData.put("ips", ipData);
-    }
-
-    public void updateIPArray(String ip) {
-        JSONArray ips = PlayerDataHandler.ipData(ip, getIPArray());
-        if (ips != null) {
-            setIPArray(ips);
+    /** Determine if an ip-data update is required
+     * @param ip the ip address to check
+     */
+    public void updateIPData(String ip) {
+        if (!playerData.getString("ip").equals(ip)){
+            if (JawaCore.debug) LOGGER.log(Level.INFO, "{0} has a new IP. It was: {1} and it is now: {2}", new Object[]{PLAYER.toString(), playerData.getString("ip"), ip});
+            PlayerDataHandler.ipData(ip, playerData.getJSONArray("ip-data"));
         }
     }
 
+    /** Determines if a player has any active bans. If a ban is active, no matter
+     * when or in what order it was done. This returns true. 
+     * @return true or false if the player is banned or not respectivly 
+     */
     public boolean isBanned() {
-        return playerData.getBoolean("banned");
+        for (JSONObject ban : banData.values()) {
+            if (ban.getBoolean("active")) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public JSONArray getNameArray() {
-        return new JSONArray(String.valueOf(playerData.get("name-data")));
-    }
-
-    public void setNameArray(JSONArray nameData) {
-        playerData.put("name-data", nameData);
-    }
-
-    public void updateNameArray(String name) {
-        JSONArray nameData = PlayerDataHandler.nameData(name, getNameArray());
-        if (nameData != null) {
-            setNameArray(nameData);
+    /** Determine if a name-data update is required
+     * @param newName the name to check
+     */
+    public void updateNameData(String newName) {
+        if (!playerData.getString("name").equals(newName)) {
+            if (JawaCore.debug) LOGGER.log(Level.INFO, "{0} has a new minecraft name. It was: {1} and it is now: {2}", new Object[]{PLAYER.toString(), playerData.getString("name"), newName});
+            PlayerDataHandler.nameData(newName, playerData.getJSONArray("name-data"));
         }
     }
 
+    /** Get the currently used IP for the player
+     * @return the string of the ip address
+     */
     public String getIP() {
-        return (String) playerData.get("ip");
+        return playerData.getString("ip");
+    }
+    
+    /** Get the jsonarray of jsonobjects containing the ip data and dates of use
+     * @return JSONArray<JSONObject> of the IP data
+     */
+    public JSONArray getIPData(){
+        return playerData.getJSONArray("ip-data");
     }
 
-    public void setIP(String ip) {
-        playerData.put("ip", ip);
-    }
-
+    /** Determine if the passed IP matches the player's current IP. If not update the
+     * recorded IP
+     * @param ip the ip address to check
+     */
     public void updateIP(String ip) {
-        if (!getIP().equals(ip)) {
-            setIP(ip);
+        if (!playerData.getString("ip").equals(ip)) {
+            playerData.put("ip", ip);
         }
     }
 
+    /** Not implemented. Need to find a good way to get immunity into the pdo.
+     * 
+     */
     public void getImmunity() {
         //TODO FIXME Immunity through player object
     }
@@ -452,8 +686,7 @@ public class PlayerDataObject {
         else return false;
     }
     
-    /** Sets the mute state of a player.
-     * @param isMuted 
+    /** Sets the mute state of a player. 
      */
     public void mute() {
         playerData.put("mute", true);
@@ -471,45 +704,92 @@ public class PlayerDataObject {
     //##########################################################################
     //#   Player home methods
     //##########################################################################
-    public boolean homeExists(String homeName) {
-        return homeData.keySet().contains(homeName);
-    }
 
-    /**
-     * This will return the home entry in for that name. It will need to be
+    /** Assemble the home list from the home-data.
+     */
+//    private void buildHomeList(){
+//        for(Object homeEntry : playerData.getJSONObject("home-data").getJSONArray(JawaCore.getServerName().toLowerCase())){
+//                    HomeObject homeObj = new HomeObject((JSONObject) homeEntry);
+//                    HOMELIST.put(homeObj.getName(), homeObj);
+//        }
+//    }
+    
+    /** add the newly indexed home ID to the player's home list
+     * @param id
+     * @param data 
+     */
+    public void returnHomeID(String id, JSONObject data){
+        homeData.put(id, data);
+        homeDataNames.put(data.getString("name"), id);
+    }
+    
+    /** This will return the home entry in for that name. It will need to be
      * location processed to be usable.
-     *
      * @param homeName
-     * @return
+     * @return jsonobject of the home
      */
     public JSONObject getHome(String homeName) {
-        return homeData.getJSONObject(homeName);
-    }
-
-    public Set getHomeEntries() {
-        return homeData.keySet();
+        return homeData.get(homeDataNames.get(homeName));
+        //return playerData.getJSONObject("home-data").getJSONObject(JawaCore.getServerName().toLowerCase()).getJSONObject(homeName);
     }
     
-    public List<String> getHomeList() {
-        return new ArrayList<String>(homeData.keySet());
+    /** This will return the location for the home entry for that name. It will need to be
+     * location processed to be usable.
+     * @param homeName
+     * @return location of the home
+     */
+    public Location getHomeLocation(String homeName) {
+        return LocationDataHandler.unpackLocation(homeData.get(homeDataNames.get(homeName)));
+    }
+    
+
+    /** Returns a List<String> with the names of homes. If there are no homes list is empty.
+     * @return List<String> object containing a list of available homes.
+     */
+    public List<String> getHomeList() {        
+        return new ArrayList(homeDataNames.keySet());
     }
 
+    /** Returns true is a matching homeName is found within the home list. This will
+     * only check if this home exists for this particular server. This is case SENSATIVE.
+     * @param homeName Home name to access.
+     * @return True is home is present in this server's home list for the user, otherwise false.
+     */
     public boolean containsHome(String homeName) {
-        if (containsHomeData()) {
-            return homeData.keySet().contains(homeName);
-        } else {
-            return false;
-        }
+        return homeDataNames.containsKey(homeName);
     }
 
-    public void setHome(String homeName, JSONObject location) {
-        homeData.put(homeName, location);
-        updateHomeDataAsync();
+    /** Creates a new homeObject in the HOMELIST and generates the accompanying JSON
+     * entry within the playerData. Executes an Async update of player data.
+     * @param player
+     * @param homeName 
+     */
+    public void setHome(Player player, String homeName) {
+        JSONObject newHome = LocationDataHandler.packLocation(player.getLocation());
+        newHome.put("owner", PLAYER.toString());
+        newHome.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        newHome.put("server", JawaCore.getServerName().toLowerCase());
+        newHome.put("name", homeName);
+        newHome.put("deleted", false);
+        ESHandler.asyncDataIndexWithIDReturn("homes", newHome);
+        
     }
     
+    /** Marks the identified home as deleted. This will no longer be retrieved.
+     * @param homeName 
+     */
     public void removeHome(String homeName){
-        homeData.remove(homeName);
-        ESHandler.singleAsyncUpdateRequest(ESRequestBuilder.requestFieldRemoval(player.toString(), homeName));
+        homeData.get(homeDataNames.get(homeName)).put("deleted", true);
+        updateHomeDataAsync(homeDataNames.get(homeName));
+        homeData.remove(homeDataNames.get(homeName));
+        homeDataNames.remove(homeName);
+    }
+    
+    /** Returns the number of homes set for a user
+     * @return 
+     */
+    public int getHomeCount(){
+        return homeData.size();
     }
 
     //##########################################################################
@@ -632,101 +912,78 @@ public class PlayerDataObject {
     //##########################################################################
     //#   Data updates
     //##########################################################################
-    /**
-     * Triggers a multiIndex search that will update the user's information
-     * within this object.
-     */
-    public void updateDataContents() {
-        MultiSearchResponse response = ESHandler.runMultiSearchRequest(ESRequestBuilder.getAllUserData(player));
-        Item[] responses = response.getResponses();
-        for (Item response1 : responses) {
-            if (!response1.isFailure()) {
-                switch (response1.getResponse().getHits().getHits()[0].getIndex()) {
-                    case "players": {
-                        addPlayerData(response1.getResponse().getHits().getHits()[0].getSourceAsMap());
-                        break;
-                    }
-                    case "bans": {
-                        addBanData(response1.getResponse().getHits().getHits()[0].getSourceAsMap());
-                        break;
-                    }
-                    case "homes": {
-                        addHomeData(response1.getResponse().getHits().getHits()[0].getSourceAsMap());
-                        break;
-                    }
-                    default: {
-                        break;
-                    }
-                }
-            }
-        }
-    }
 
-    /**
-     * Triggers an AsyncUpdate that commits the working playerData to the ES db.
+    /** Triggers an AsyncUpdate that commits the working playerData to the ES db.
      */
     public void updatePlayerDataAsync() {
-        ESHandler.asyncUpdateData(player, playerData, "players");
+        ESHandler.asyncUpdateData(PLAYER, playerData, "players");
     }
 
-    public void updatePlayerBanDataAsync() {
-        ESHandler.asyncUpdateData(player, banData, "bans");
+    /** Triggers an AsyncUpdate that commits the working ban data to the ES db.
+     * @param id
+     */
+    private void updateBanDataAsync(String id) {
+        ESHandler.singleAsyncUpdateRequest(ESRequestBuilder.updateRequestBuilder(banData.get(id), "bans", id, true));
+        //ESHandler.asyncUpdateData(PLAYER, banData, "bans");
     }
     
-    public void updateHomeDataAsync(){
-        ESHandler.asyncUpdateData(player, homeData, "homes");
+    /** Triggers an AsyncUpdate that commits the working home data to the ES db.
+     * @param id
+     */
+    public void updateHomeDataAsync(String id){
+        ESHandler.singleAsyncUpdateRequest(ESRequestBuilder.updateRequestBuilder(homeData.get(id), "homes", id, true));
+//        ESHandler.asyncUpdateData(PLAYER, homeData, "homes");
     }
 
-    /**
-     * Triggers Synchronous Update that commits the working playerData to the ES
+    /** Triggers Synchronous Update that commits the working playerData to the ES
      * db. This should only be used when called from an already asynchronous
      * thread.
      *
      * @return
      */
     public boolean updatePlayerData() {
-        return ESHandler.singleUpdateRequest(ESRequestBuilder.updateRequestBuilder(playerData, "players", player.toString(), true));
+        return ESHandler.singleUpdateRequest(ESRequestBuilder.updateRequestBuilder(playerData, "players", PLAYER.toString(), true));
     }
 
-    /**
-     * * Adds the data to the player object, caches it with the PlayerManager,
-     * and executes a synchronous ES db update.Returns true if the update
+    /** Adds the data to the player object, caches it with the PlayerManager,
+     * and executes a synchronous ES db update. Returns true if the update
      * succeeds.This is only intended for first player joins.
-     *
      * @param name
      * @param ip
-     * @param playerData
-     * @return
      */
-    public boolean installPlayer(String name, String ip) {
-        this.playerData = firstTimePlayer(name, ip);
-        this.banData = new JSONObject();
-        this.homeData = new JSONObject();
-        registerPlayer();
+    private void installPlayer(String name, String ip) {
+        firstTimePlayer(name, ip);
+//        registerPlayer();
         if (updatePlayerData()) {
-            callPlayerInfoLoaded();
             //getPlayer().sendMessage(ChatColor.GREEN + " > You have been installed!");
-            Logger.getLogger(PlayerDataObject.class.getName()).log(Level.INFO, "Player: {0} has been installed.", getName());
-            return true;
+            LOGGER.log(Level.INFO, "{0}Player: {1} has been installed.", new Object[]{ChatColor.GREEN, getName()});
+            //return true;
         } else {
-            Logger.getLogger(PlayerDataObject.class.getName()).log(Level.SEVERE, "Unable to index player: {0}:{1}", new Object[]{player.toString(), getName()});
-            return false;
+            LOGGER.log(Level.SEVERE, "Unable to index player: {0}:{1}", new Object[]{PLAYER.toString(), getName()});
+            //return false;
         }
     }
 
-    /**
-     * Update a player's changed details when they join.
+    /** Update a player's changed details when they join.
      * @param name
      * @param ip
      */
     public void onJoinUpdate(String name, String ip) {
         validateData(name, ip);
         setLastLogin();
+        
+        //Update the name-data first
+        updateNameData(name);
+        //Update the name
         updateName(name);
-        updateNameArray(name);
+        
+        //Update the ip-data first
+        updateIPData(ip);
+        //Update the ip
         updateIP(ip);
-        updateIPArray(ip);
-        repairMalformedData();
+        
+//        repairMalformedData();
+        
         if (updatePlayerData()) {
             callPlayerInfoLoaded();
         }
@@ -734,26 +991,36 @@ public class PlayerDataObject {
         
     }
     
-    public void repairMalformedData(){
-        if (playerData.has("rank-data") && playerData.getJSONObject("rank-data").keySet().contains("rank-data")){
-            LOGGER.log(Level.INFO, "Malformed rank-history data has been detected for {0}:{1}. Attempting to fix.", new Object[]{getName(), player.toString()});
-            //System.out.println("[PlayerDataObject] Malformed rank-history data has been detected. Attempting to fix.");
-            //PDO data correction
-            JSONObject rankData = playerData.getJSONObject("rank-data");
-            JSONObject tmpRankEntry = rankData.getJSONObject("rank-data");
-            rankData.remove("rank-data");
-            String tmpKey = String.valueOf(tmpRankEntry.keySet().toArray()[0]);
-            rankData.put(tmpKey, tmpRankEntry.getJSONObject(tmpKey));
-            playerData.remove("rank-data");
-            playerData.put("rank-data", rankData);
+//    public void repairMalformedData(){
+//        if (playerData.has("rank-data") && (playerData.getJSONObject("rank-data").keySet().contains("rank-data") || playerData.getJSONObject("rank-data").keySet().contains("rank"))){
+//            LOGGER.log(Level.INFO, "Malformed rank-history data has been detected for {0}:{1}. Attempting to fix.", new Object[]{getName(), PLAYER.toString()});
+//            //System.out.println("[PlayerDataObject] Malformed rank-history data has been detected. Attempting to fix.");
+//            //PDO data correction
+//            JSONObject rankData = playerData.getJSONObject("rank-data");
+//            JSONObject tmpRankEntry = rankData.getJSONObject("rank-data");
+//            rankData.remove("rank-data");
+//            String tmpKey = String.valueOf(tmpRankEntry.keySet().toArray()[0]);
+//            rankData.put(tmpKey, tmpRankEntry.getJSONObject(tmpKey));
+//            playerData.remove("rank-data");
+//            playerData.put("rank-data", rankData);
+////            
+////            JSONObject updateRankData = new JSONObject();
+////            updateRankData.put("rank-data", rankData);
 //            
-//            JSONObject updateRankData = new JSONObject();
-//            updateRankData.put("rank-data", rankData);
-            
-            //Database correction
-            ESHandler.correctMalformedField("rank-data", "players", player);
-        }
-    }
+//            //Database correction
+//            ESHandler.correctMalformedField("rank-data", "players", PLAYER);
+//        }
+//    }
+    
+//    private void verifyPlayerData(){
+//        
+//    }
+//    
+//    private void verifyHomeData(){
+////        if (playerData.has("home-data") && playerData.getJSONObject("home-data").has(JawaCore.getServerName())) {
+////            for (String home : playerData.getJSONObject("home-data").getJSONObject(JawaCore.getServerName()))
+////        }
+//    }
 
     /**
      * Updates a player's logout details when they quit. It removes them from
@@ -762,18 +1029,20 @@ public class PlayerDataObject {
     public void onQuitUpdate() {
         setLastLogout();
         updatePlayerData();
-        PlayerManager.removePlayer(player);
+        PlayerManager.removePlayer(PLAYER);
     }
 
-    public void registerPlayer() {
-        PlayerManager.addPlayer(player, this);
-    }
+//    public void registerPlayer() {
+//        PlayerManager.addPlayer(PLAYER, this);
+//        //get home data since we let them join now
+//        
+//    }
 
     //##########################################################################
     //#   Debug
     //##########################################################################
     public void spillData() {
-        LOGGER.log(Level.INFO,"PlayerDataObject Spilling data for {0}:{1}\n{2}", new Object[]{getName(),player.toString(),playerData.toString(4)});
+        LOGGER.log(Level.INFO,"PlayerDataObject Spilling data for {0}:{1}\n{2}", new Object[]{getName(),PLAYER.toString(),playerData.toString(4)});
         //System.out.println("PlayerDataObject Spilling data for player: " + player.toString());
         //System.out.println(playerData);
     }
@@ -781,44 +1050,51 @@ public class PlayerDataObject {
     //##########################################################################
     //#   Events
     //##########################################################################
-    private void callPlayerInfoLoaded() {
-        Bukkit.getServer().getPluginManager().callEvent(new PlayerInfoLoaded(player, this));
+    public void callPlayerInfoLoaded() {
+        Bukkit.getServer().getPluginManager().callEvent(new PlayerInfoLoaded(PLAYER, this));
     }
 
-    /**
-     * Creates the player data for committing to the ElasticSearch index.
-     *
-     * @param name
-     * @param ip
-     * @param autoElevate
-     * @param player
-     * @return
+    /** Creates the player data for committing to the ElasticSearch index.
+     * @param name The name of the player
+     * @param ip IP of the player
      */
-    public JSONObject firstTimePlayer(String name, String ip) {
+    public void firstTimePlayer(String name, String ip) {
         playerData.put("first-login", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        setLastLogin();
-        setLastLogout();
-        playerData.put("play-time", 0);
+        playerData.put("last-login", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        // Not setting logout here
+        
+//        playerData.put("play-time", 0);
 
         playerData.put("name", name);
-        playerData.put("name-data", nameData(name, new JSONArray()));
-
-        playerData.put("banned", false);
+        playerData.put("name-data", new JSONArray());
+        PlayerDataHandler.nameData(name, playerData.getJSONArray("name-data"));
+        
         playerData.put("nick", "");
         playerData.put("nick-data", new JSONArray());
+        
         playerData.put("tag", "");
         playerData.put("star", "");
-        setIP(ip);
-        playerData.put("ips", ipData(ip, new JSONArray()));
+        
+        //Create IP data
+        playerData.put("ip", ip.replace("/", ""));
+        playerData.put("ip-data", new JSONArray());
+        PlayerDataHandler.ipData(ip, playerData.getJSONArray("ip-data"));
 
+        //Setup rank data
         playerData.put("rank", "guest");
+        playerData.put("rank-data", new JSONArray());
+        //Create a system entry for the rank creation
+        playerData.getJSONArray("rank-data").put(PlayerDataHandler.createPlayerRankChangeData("guest", "guest", "00000000-0000-0000-0000-000000000000"));
+        
+        playerData.put("single-permissions", new JSONArray());
+        playerData.put("single-prohibitions", new JSONArray());
+        
+        playerData.put("safe-teleport", JawaCore.getPluginConfiguration("JawaCommands").getBoolean("teleport-settings.safe-tp-enabled", true));
 
         if (JawaCore.debug) {
-            LOGGER.log(Level.INFO, "First-time player data generated as follows: {0}", playerData.toString());
+            LOGGER.log(Level.INFO, "First-time player data generated as follows: {0}", playerData.toString(4));
             //System.out.print(handlerSlug + "firstTimePlayer data created as follows: " + playerData.toString());
         }
-
-        return playerData;
     }
 
     /**
@@ -883,7 +1159,7 @@ public class PlayerDataObject {
     }
 
     public boolean equals(Player otherPlayer) {
-        return otherPlayer.getUniqueId().toString().equals(player.toString());
+        return otherPlayer.getUniqueId().toString().equals(PLAYER.toString());
     }
 
     public UUID getPrivateConversation() {
@@ -948,7 +1224,7 @@ public class PlayerDataObject {
      * @return 
      */
     public String generateDiscordCode(){
-        String code = "#" + String.valueOf(Math.abs((player.toString() + LocalDateTime.now()).hashCode())) + "#";
+        String code = "#" + String.valueOf(Math.abs((PLAYER.toString() + LocalDateTime.now()).hashCode())) + "#";
         Logger.getLogger("PlayerDataObject").log(Level.INFO, "Generated a discord link code for {0}. Code: {1}", new Object[]{getName(), code});
         
 //        boolean newData = !playerData.has("discord-data");
@@ -960,7 +1236,7 @@ public class PlayerDataObject {
     }
     
     public String generateTestCode(){
-        return "#" + String.valueOf(Math.abs((player.toString() + LocalDateTime.now()).hashCode())) + "#";
+        return "#" + String.valueOf(Math.abs((PLAYER.toString() + LocalDateTime.now()).hashCode())) + "#";
     }
     
     /** Returns true is a player is discord linked.
@@ -1028,11 +1304,6 @@ public class PlayerDataObject {
             repaired = true;
             itemsRepaired.add("last-logout");
         }
-        if (!playerData.has("play-time")) {
-            playerData.put("play-time", 0);
-            repaired = true;
-            itemsRepaired.add("play-time");
-        }
 
         if (!playerData.has("name")) {
             playerData.put("name", name);
@@ -1040,45 +1311,45 @@ public class PlayerDataObject {
             itemsRepaired.add("name");
         }
         if (!playerData.has("name-data")) {
-            playerData.put("name-data", nameData(name, new JSONArray()));
+            playerData.put("name-data", new JSONArray());
+            PlayerDataHandler.nameData(name, playerData.getJSONArray("name-data"));
             repaired = true;
             itemsRepaired.add("name-data");
         }
 
-        if (!playerData.has("banned")) {
-            playerData.put("banned", false);
-            repaired = true;
-            itemsRepaired.add("banned");
-        }
         if (!playerData.has("nick")) {
             playerData.put("nick", "");
             repaired = true;
             itemsRepaired.add("nick");
         }
+        
         if (!playerData.has("nick-data")) {
             playerData.put("nick-data", new JSONArray());
             repaired = true;
             itemsRepaired.add("nick-data");
         }
+        
         if (!playerData.has("tag")) {
             playerData.put("tag", "");
             repaired = true;
             itemsRepaired.add("tag");
         }
+        
         if (!playerData.has("star")) {
             playerData.put("star", "");
             repaired = true;
             itemsRepaired.add("star");
         }
         if (!playerData.has("ip")) {
-            setIP(ip);
+            playerData.put("ip", ip);
             repaired = true;
             itemsRepaired.add("ip");
         }
-        if (!playerData.has("ips")) {
-            playerData.put("ips", ipData(ip, new JSONArray()));
+        if (!playerData.has("ip-data")) {
+            playerData.put("ip-data", new JSONArray());
+            PlayerDataHandler.ipData(ip, playerData.getJSONArray("ip-data"));
             repaired = true;
-            itemsRepaired.add("ips");
+            itemsRepaired.add("ip-data");
         }
 
         if (!playerData.has("rank")) {
@@ -1088,10 +1359,104 @@ public class PlayerDataObject {
         }
         
         if (!itemsRepaired.isEmpty()) {
-            Logger.getLogger("PlayerDataObject").log(Level.INFO, "Data validation has found malformed player data for {0}({1}) and has repaired the following items: {2}", new Object[]{playerData.getString("name"), player.toString(), String.join(", ", itemsRepaired)});
+            LOGGER.log(Level.SEVERE, "Data validation has found malformed player data for {0}({1}) and has repaired the following items: {2}", new Object[]{playerData.getString("name"), PLAYER.toString(), String.join(", ", itemsRepaired)});
         }
-        
+        updatePlayerData();
         return repaired;
     }
 
+    //##########################################################################
+    //#   Player Comments
+    //##########################################################################
+    
+    /** Check if the player data has admin comments.
+     * @return 
+     */
+    public boolean containsComments(){
+        return this.playerData.has("admin-comments") && !this.playerData.getJSONArray("admin-comments").isEmpty();
+    }
+    
+    /** Add a comment to the player data.
+     * @param comment String comment
+     * @param adminUUID UUID of the admin adding the comment
+     */
+    public void addComment(String comment, UUID adminUUID){
+        if (!this.playerData.has("admin-comments")){
+            this.playerData.put("admin-comments", new JSONArray());
+        }
+        
+        JSONObject commentObj = new JSONObject();
+        commentObj.put("comment", comment);
+        commentObj.put("admin", adminUUID.toString());
+        commentObj.put("date", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        
+        this.playerData.getJSONArray("admin-comments").put(commentObj);
+        updatePlayerDataAsync();
+    }
+    
+    /** Remove a specific comment with the index of commentNumber.
+     * @param commentNumber 
+     */
+    public void removeComment(int commentNumber){
+        this.playerData.getJSONArray("admin-comments").remove(commentNumber);
+        updatePlayerDataAsync();
+    }
+    
+    /** Get the JSONArray of comments
+     * @return JSONArray of the comments
+     */
+    public JSONArray getComments(){
+        if (!containsComments()) return null;
+        return this.playerData.getJSONArray("admin-comments");
+    }
+    
+    /** Is there a comment at the specified index.
+     * @param ind
+     * @return 
+     */
+    public boolean hasCommentAtIndex(int ind){
+        return this.playerData.getJSONArray("admin-comments").length() >= ind;
+    }
+    
+    /** Returns if the player has safe TP enabled. If there is no entry for it
+     * it will be created with the server default value. FIXME needs soft depends coding
+     * @return 
+     */
+    public boolean safeTeleportEnabled(){
+        try {
+            return playerData.getBoolean("safe-teleport");
+        } catch (JSONException ex ) {
+            LOGGER.log(Level.WARNING, playerData.getString("name") + " did not have an entry for safe-teleport. Adding entry...");
+            playerData.put("safe-teleport", JawaCore.getPluginConfiguration("JawaCommands").getBoolean("teleport-settings.safe-tp-enabled", true));
+            updatePlayerDataAsync();
+            return JawaCore.getPluginConfiguration("JawaCommands").getBoolean("teleport-settings.safe-tp-enabled", true);
+        }
+    }
+    
+    /** Toggles between safe teleport on-off.
+     */
+    public void toggleSafeTeleport(){
+        //Doesn't seem to be the most efficient but this way it runs the check and adds the value if need be
+        if (safeTeleportEnabled()) {
+            playerData.put("safe-teleport", false);
+        } else {
+            playerData.put("safe-teleport", true);
+        }
+    }
+    
+    public boolean getAllowedInZone(String zoneName){
+        return ZONEPERMISSIONS.containsKey(zoneName) ? ZONEPERMISSIONS.get(zoneName).getBoolean("allowed") : true;
+    }
+    
+    public boolean getRequiredInZone(String zoneName){
+        return ZONEPERMISSIONS.containsKey(zoneName) ? ZONEPERMISSIONS.get(zoneName).getBoolean("required") : true;
+    }
+    
+    public void setZonePermission(String zoneName, boolean playerAllowedInZone, boolean playerRequiredInZone){
+        JSONObject zonePerms = new JSONObject();
+        zonePerms.put("allowed", playerAllowedInZone);
+        zonePerms.put("required", playerRequiredInZone);
+        ZONEPERMISSIONS.put(zoneName, zonePerms);
+    }
+ 
 }

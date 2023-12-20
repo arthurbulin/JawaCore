@@ -1,31 +1,41 @@
 Things finished in this build:
- - Better tab complete for /home
- - pweather with tab complete
- - ptime with tab complete
- 
-Things to finish in this build:
- - try to fix sleep plugin
-	- allow a player to get sleep to stop phantoms
- - better descriptions and usages
- - migrate all commands to command handler registration
- - config options for chat fixes and new commands, nothing more, that will come later
- - tab completes
+ - fixing the ban mapping so that i don't need 10k+ mappings
+ - database handling rewrite
  - Target selection processors
  - Warps
-        - impliment Target selection processors
+        - implement Target selection processors
         - make commands less trouble some
-        - inheritence chain
- - Change log tracking in all plugins
- - foxelbot integration
+ - fucking kit command
+ - add ability to deny joining of people below certain ranks
+ - changed ban command
+ - player comments (JawaPermissions)
+    - allow staff to add comments to a player
+    - allow staff to view comments on a player
+ - fixing home mapping so that i don't need 10k+ mappings
+
+Things to finish in this build:
+ - try to fix sleep plugin (toolbox)
+	- allow a player to get sleep to stop phantoms
+ - better descriptions and usages (all)
+ - migrate all commands to command handler registration (all)
+ - config options for chat fixes and new commands, nothing more, that will come later (chat)
+ - tab completes (all)
+ - Change log tracking in all plugins (all)
+ - foxelbot integration (JawaChat)
         - foxelbot can link discord players to minecraft
         - foxelbot can update discord ranks to match server ranks
         - foxelbot can report to staff with @staff given by a player
         - foxelbot can scan chat for key troll words and alert staff in discord
 
-Stretch
- - fucking kit command
+Stretch:
+ - individual permission (JawaPermissions)
+    - add from in-game
+ - add permissions to rank from in-game (JawaPermissions)
+ - add rank from in-game (JawaPermissions)
+ - checkov style app (JawaPermissions)
 
 Next build?
+ - add dynamic debug options
  - alt data commands (Auto search, minecraft name, historical ips, etc)
  - private chat channels?
  - /rules command and /accept command?
@@ -36,30 +46,24 @@ Next build?
  - @player in chat to trigger a sound transmit to player
  - @staff for players
  - @<rank> for staff
- - local weather and time
- - survival fly command
- - mute command
  - report gamemode 
  - Add config options for autounban
  - migrate all instances of org.bukkit.chatcolor to net.md_5.bungee.api.ChatColor
  - transmit commands list to players upon data load (I think i got, idk if it really works)
-
+ - tp freeze toggle
+ - tp timeout 
 
 distant build:
  - JawaBot/XaiBot for user reporting
  - mail
  - /ignore <player> command?
- - adding permissions from in-gamge
+ - adding permissions from in-game
  - adding ranks from in game
- - allow staff notes on players? (book interface or chat print?)
  - staff conversation interface to ignore chat when admining (@staff exceptions)
- - internal api for spigot calls?
-	- settup classes that just map a jawa function to a spigot function, so if spigot updates a function only needs to be called inside the jawa function and corrected there
- - fixing the ban mapping so that i don't need 10k+ mappings
- - fixing home mapping so that i don't need 10k+ mappings
+ - internal api for spigot calls? (this is stupid)
+	- setup classes that just map a jawa function to a spigot function, so if spigot updates a function only needs to be called inside the jawa function and corrected there
  - adding special parameters for command blocks
  - rank based motd messages
- - minecraft account name history
 
 Thing done in last update:
  - finish chat updates (JawaChat)

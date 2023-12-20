@@ -1,0 +1,44 @@
+{
+    "dynamic": true,
+    "numeric_detection": false,
+    "date_detection": true,
+    "dynamic_date_formats": [
+        "strict_date_optional_time",
+        "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"
+    ],
+    "_source": {
+        "enabled": true,
+        "includes": [],
+        "excludes": []
+    },
+    "_routing": {
+        "required": false
+    },
+    "dynamic_templates": [],
+    "properties": {
+        "message": {
+            "type": "text"
+        },
+        "recipient": {
+            "type": "text"
+        },
+        "server": {
+            "type": "text"
+        },
+        "session-id": {
+            "type": "text"
+        },
+        "sender": {
+            "type": "text"
+        },
+        "mute": {
+            "type": "boolean"
+        },
+        "routed": {
+            "type": "boolean"
+        },
+        "@timestamp": {
+            "type": "date"
+        }
+    }
+}

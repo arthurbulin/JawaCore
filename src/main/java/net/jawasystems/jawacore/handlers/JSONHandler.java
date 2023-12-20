@@ -21,6 +21,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Paths;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,13 +41,16 @@ public class JSONHandler {
         try {
             String source = new String(Files.readAllBytes(Paths.get(JSONFile.toURI())));
             return new JSONObject(source);
+        }catch (NoSuchFileException ex){
+            //Logger.getLogger(JSONHandler.class.getName()).log(Level.SEVERE, null, ex);
+            return new JSONObject();
         } catch (FileNotFoundException ex) {
-            Logger.getLogger(JSONHandler.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(JSONHandler.class.getName()).log(Level.SEVERE, null, ex);
             return new JSONObject();
         } catch (IOException ex) {
-            Logger.getLogger(JSONHandler.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(JSONHandler.class.getName()).log(Level.SEVERE, null, ex);
             return new JSONObject();
-        }
+        } 
     }
     
     public static void WriteJSONToFile(JavaPlugin plugin, String file, JSONObject obj){
