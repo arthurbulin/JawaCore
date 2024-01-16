@@ -598,6 +598,13 @@ public class PlayerDataObject {
         return playerData.getString("name");
     }
 
+    /** Returns the player's minecraft name colored with their rank color
+     * @return 
+     */
+    public TextComponent getColoredName(){
+        return Component.text(getName()).color(getRankColor());
+    }
+
     /** Sets the player's minecraft name. This should only be done on minecraft account
      * name changes. NOT NickNames!!
      * @param name 
@@ -839,15 +846,16 @@ public class PlayerDataObject {
      * In the even the user has no star data an empty component is returned.
      * @return 
      */
-    public Component getStarComponent(){
-        if (playerData.getString("star").equals("r")) {
-            return Component.text("*", NamedTextColor.RED);
-        } else if (playerData.getString("star").equals("y")) {
-            return Component.text("*", NamedTextColor.YELLOW);
-        } else if (playerData.getString("star").equals("g")) {
-            return Component.text("*", NamedTextColor.GREEN);
-        } else {
-            return Component.empty();
+    public TextComponent getStarComponent(){
+        switch (playerData.getString("star")) {
+            case "r":
+                return Component.text("*", NamedTextColor.RED);
+            case "y":
+                return Component.text("*", NamedTextColor.YELLOW);
+            case "g":
+                return Component.text("*", NamedTextColor.GREEN);
+            default:
+                return Component.empty();
         }
     }
 
@@ -855,16 +863,27 @@ public class PlayerDataObject {
      * @param star value of "r", "y", "g", or ""
      */
     public void setStar(String star) {
-        if (star.equals("r")) {
-            playerData.put("star", "r");
-        } else if (star.equals("y")) {
-            playerData.put("star", "y");
-        } else if (star.equals("g")) {
-            playerData.put("star", "g");
-        } else if (star.equals("")) {
-            playerData.put("star", "");
+        switch (star) {
+            case "r":
+                playerData.put("star", "r");
+                break;
+            case "y":
+                playerData.put("star", "y");
+                break;
+            case "g":
+                playerData.put("star", "g");
+                break;
+            case "":
+                playerData.put("star", "");
+                break;
+            default:
+                break;
         }
         updatePlayerDataAsync();
+    }
+    
+    public boolean hasStar(){
+        return !playerData.getString("star").isEmpty();
     }
  
     /** Adds a nick and resolves the nick-data attribute for update. Should only
@@ -904,7 +923,7 @@ public class PlayerDataObject {
     /** Returns true if a player has a nickname set. false if not.
      * @return 
      */
-    private boolean hasNickName() {
+    public boolean hasNickName() {
         return !playerData.getJSONObject("nick").isEmpty();
     }
 
@@ -971,6 +990,13 @@ public class PlayerDataObject {
     public void setTag(String tag) {
         playerData.put("tag", JSONComponentSerializer.json().serialize(PlainTextComponentSerializer.plainText().deserialize(tag)));
         updatePlayerDataAsync();
+    }
+    
+    /** Returns true if the player has a tag, returns false if no tag
+     * @return 
+     */
+    public boolean hasTag(){
+        return !playerData.getJSONObject("tag").isEmpty();
     }
 
     public JSONArray getNickData() {
