@@ -35,12 +35,18 @@ import net.jawasystems.jawacore.handlers.ESHandler;
 import net.jawasystems.jawacore.handlers.LocationDataHandler;
 import net.jawasystems.jawacore.handlers.PlayerDataHandler;
 import net.jawasystems.jawacore.utils.ESRequestBuilder;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.json.JSONComponentSerializer;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Server;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.json.JSONArray;
@@ -56,6 +62,7 @@ public class PlayerDataObject {
     private static final Logger LOGGER = Logger.getLogger("PlayerDataObject");
 //    private final HashMap<String,HomeObject> HOMELIST = new HashMap();
     private final UUID PLAYER;
+    public final String DATAVERSION = "v20.X-0.1";
     private Map<String, JSONObject> banData;
     private JSONObject playerData;
     private Map<String, JSONObject> homeData;
@@ -63,7 +70,7 @@ public class PlayerDataObject {
 
     private UUID privateConversation;
 
-    private ChatColor rankColor;
+    private TextColor rankColor;
     
     private final HashMap<String, JSONObject> ZONEPERMISSIONS = new HashMap();
 
@@ -550,13 +557,30 @@ public class PlayerDataObject {
         return PLAYER;
     }
 
-    /** Changes the player's rank and records the UUID of admin, time, new, and old ranks.
+//    /** Changes the player's rank and records the UUID of admin, time, new, and old ranks.
+//     * Then notifies the player that their rank has been changed.
+//     * @param newRank
+//     * @param adminUUID
+//     * @param rankColor 
+//     */
+//    public void setRank(String newRank, UUID adminUUID, ChatColor rankColor) {
+//        newRank = newRank.toLowerCase();
+//        playerData.getJSONArray("rank-data").put(PlayerDataHandler.createPlayerRankChangeData(getRank(), newRank, adminUUID.toString()));
+//        
+//        playerData.put("rank", newRank);
+//        setRankColor(rankColor);
+//        Bukkit.getServer().getPluginManager().callEvent(new PlayerRankChange(PLAYER, newRank));
+//        //sendMessageIf(ChatColor.GREEN + " > Your rank has been changed to " + newRank);
+//        updatePlayerDataAsync();
+//    }
+    
+        /** Changes the player's rank and records the UUID of admin, time, new, and old ranks.
      * Then notifies the player that their rank has been changed.
      * @param newRank
      * @param adminUUID
      * @param rankColor 
      */
-    public void setRank(String newRank, UUID adminUUID, ChatColor rankColor) {
+    public void setRank(String newRank, UUID adminUUID, TextColor rankColor) {
         newRank = newRank.toLowerCase();
         playerData.getJSONArray("rank-data").put(PlayerDataHandler.createPlayerRankChangeData(getRank(), newRank, adminUUID.toString()));
         
@@ -795,18 +819,41 @@ public class PlayerDataObject {
     //##########################################################################
     //#   Player name gets
     //########################################################################## 
-    public String getStar() {
+//    /**
+//     * @deprecated Use {@link getStarComponent()} instead
+//     * @return 
+//     */
+//    public String getStar() {
+//        if (playerData.getString("star").equals("r")) {
+//            return ChatColor.RED + "*";
+//        } else if (playerData.getString("star").equals("y")) {
+//            return ChatColor.YELLOW + "*";
+//        } else if (playerData.getString("star").equals("g")) {
+//            return ChatColor.GREEN + "*";
+//        } else {
+//            return "";
+//        }
+//    }
+    
+    /** Returns the player star data as an appendable component.
+     * In the even the user has no star data an empty component is returned.
+     * @return 
+     */
+    public Component getStarComponent(){
         if (playerData.getString("star").equals("r")) {
-            return ChatColor.RED + "*";
+            return Component.text("*", NamedTextColor.RED);
         } else if (playerData.getString("star").equals("y")) {
-            return ChatColor.YELLOW + "*";
+            return Component.text("*", NamedTextColor.YELLOW);
         } else if (playerData.getString("star").equals("g")) {
-            return ChatColor.GREEN + "*";
+            return Component.text("*", NamedTextColor.GREEN);
         } else {
-            return "";
+            return Component.empty();
         }
     }
 
+    /** Sets a colored start on the player's name
+     * @param star value of "r", "y", "g", or ""
+     */
     public void setStar(String star) {
         if (star.equals("r")) {
             playerData.put("star", "r");
@@ -819,47 +866,110 @@ public class PlayerDataObject {
         }
         updatePlayerDataAsync();
     }
-
-    public String getNickName() {
-        return playerData.getString("nick");
-    }
-
-    /**
-     * Adds a nick and resolves the nick-data attribute for update. Should only
+ 
+    /** Adds a nick and resolves the nick-data attribute for update. Should only
      * be used with PlayerDataObjects that contain a player's full data.
      *
      * @param nick
      */
     public void setNick(String nick) {
+        //deserialize into a TextComponent
+        TextComponent nickName = LegacyComponentSerializer.legacyAmpersand().deserialize(nick);
+        //If the nickname isn't empty
         if (!nick.equals("")) {
-            JSONArray nickData = PlayerDataHandler.nickData(nick, getNickData());
+            //Serialize the new nick into a JSON format
+            JSONArray nickData = PlayerDataHandler.nickData(JSONComponentSerializer.json().serialize(nickName), getNickData());
+            //If nothing went wrong go ahead and commit the modified nick data array to the player data
             if (nickData != null) {
                 playerData.put("nick-data", nickData);
             }
         }
-        playerData.put("nick", nick);
+        //Commit the nickname to the player data. Note that if "" is passed as the name an empty TextComponent should be serialized to an empty JSONObject
+        playerData.put("nick", JSONComponentSerializer.json().serialize(nickName));
         updatePlayerDataAsync();
     }
+    
+//    public String getNickName() {
+//        return playerData.getString("nick");
+//    }
+    /** Return a text component of the player's nickname.
+     * UNLESS doing permitations on a player's nickname you should ALWAYS use{@link #getFriendlyName() getFriendlyName} as this does not
+     * deal with a player with no nick name.
+     * @return 
+     */
+    public TextComponent getNickNameComponent(){
+        return (TextComponent) JSONComponentSerializer.json().deserialize(playerData.getJSONObject("nick").toString());
+    }
 
-    /**
-     * Returns a nickname stripped of all color data
-     *
+    /** Returns true if a player has a nickname set. false if not.
+     * @return 
+     */
+    private boolean hasNickName() {
+        return !playerData.getJSONObject("nick").isEmpty();
+    }
+
+    /** Returns a nickname stripped of all color data
      * @return
      */
     public String getPlainNick() {
-        if (!getNickName().equals("")) {
-            return playerData.getString("nick").replaceAll("&[a-f]|&[1-9]|&[k-r]", "");
+        if (hasNickName()) {
+            //TODO find a better way to do this. it is messy
+            return PlainTextComponentSerializer.plainText().serialize(JSONComponentSerializer.json().deserialize(playerData.getJSONObject("nick").toString()));
         } else {
             return getName();
         }
     }
 
-    public String getTag() {
-        return playerData.getString("tag");
+    /** Returns a colored name ready for sending. If a player doesn't have a
+     * nickname this returns the player's their minecraft name with rank
+     * coloring.
+     * @return
+     */
+    public TextComponent getFriendlyName() {
+        if (hasNickName()) {
+            return getNickNameComponent();
+        } else {
+            return Component.text(getName()).color(getRankColor());
+        }
     }
 
+//    /**
+//     * Returns a colored name ready for sending. If a player doesn't have a
+//     * nickname this returns the player's their minecraft name with rank
+//     * coloring. This is backed by getFriendlyName()
+//     *
+//     * @return
+//     */
+//    public String getDisplayName() {
+//        return getFriendlyName();
+//    }
+//    
+//    /** Returns a string with legacy color codes for the tag.
+//     * @deprecated use {@link getTagComponent()}
+//     * @return 
+//     */
+//    public String getTag() {
+//        return playerData.getString("tag");
+//    }
+    
+    /** Returns a Component for the player's personalized tag.
+     * 
+     * @return 
+     */
+    public TextComponent getTagComponent() {
+        if (!playerData.getJSONObject("tag").isEmpty()) {
+            return (TextComponent) JSONComponentSerializer.json().deserialize(playerData.getJSONObject("tag").toString());
+        } else {
+            return Component.text().build();
+        }
+    }
+
+    /** Serializes a player's tag component into a json object and adds it to the player data.
+     * This invokes {@link #updatePlayerDataAsync() updatePlayerDataAsync}. 
+     * @param tag The component that defines the user's tag.
+     */
     public void setTag(String tag) {
-        playerData.put("tag", tag);
+        playerData.put("tag", JSONComponentSerializer.json().serialize(PlainTextComponentSerializer.plainText().deserialize(tag)));
         updatePlayerDataAsync();
     }
 
@@ -867,45 +977,23 @@ public class PlayerDataObject {
         return playerData.getJSONArray("nick-data");
     }
     
-    public String getFriendlyTag() {
-        return ChatColor.translateAlternateColorCodes('&', getTag());
-    }
+//    public String getFriendlyTag() {
+//        return ChatColor.translateAlternateColorCodes('&', getTag());
+//    }
 
-    /**
-     * Returns a colored name ready for sending. If a player doesn't have a
-     * nickname this returns the player's their minecraft name with rank
-     * coloring.
-     *
-     * @return
+
+    /** Returns the user's rank color
+     * @return 
      */
-    public String getFriendlyName() {
-        if (getNickName().equals("")) {
-            return getRankColor() + getName();
-        } else {
-            return ChatColor.translateAlternateColorCodes('&', getNickName());
-        }
-    }
-
-    /**
-     * Returns a colored name ready for sending. If a player doesn't have a
-     * nickname this returns the player's their minecraft name with rank
-     * coloring. This is backed by getFriendlyName()
-     *
-     * @return
-     */
-    public String getDisplayName() {
-        return getFriendlyName();
-    }
-
-    public ChatColor getRankColor() {
+    public TextColor getRankColor() {
         if (rankColor != null) {
             return rankColor;
         } else {
-            return ChatColor.WHITE;
+            return NamedTextColor.WHITE;
         }
     }
 
-    public void setRankColor(ChatColor color) {
+    public void setRankColor(TextColor color) {
         rankColor = color;
     }
 
@@ -1286,6 +1374,51 @@ public class PlayerDataObject {
 //        
 //    }
     
+    private void versionUpdateCheck(){
+        if (playerData.has("data-version") && DATAVERSION.equals(playerData.getString("data-version"))){
+            LOGGER.log(Level.INFO,"{0} has the most current data version of {1}", new Object[] {PLAYER.toString(), this.DATAVERSION});
+        } else if (playerData.has("data-version") && !DATAVERSION.equals(playerData.getString("data-version"))) {
+            LOGGER.log(Level.INFO, "{0}'s data version does not match. Data versin will be updated to {1}", new Object[]{PLAYER.toString(),this.DATAVERSION});
+            playerData.put("data-version", DATAVERSION);
+            //TODO eventual case statement to do the translations
+        } else {
+            updateNickName();
+            updateTag();
+            updateNickData();
+        }
+    }
+    
+    private void updateNickName() {
+        try {
+            playerData.getJSONObject("nick");
+        } catch (JSONException e) {
+            playerData.put("nick", JSONComponentSerializer.json().serialize(PlainTextComponentSerializer.plainText().deserialize(playerData.getString("nick"))));
+        }
+    }
+    
+    private void updateTag() {
+        try {
+            playerData.getJSONObject("tag");
+        } catch (JSONException e) {
+            playerData.put("tag", JSONComponentSerializer.json().serialize(PlainTextComponentSerializer.plainText().deserialize(playerData.getString("tag"))));
+        }
+    }
+    
+    private void updateNickData() {
+        if (!playerData.getJSONArray("nick-data").isEmpty()) {
+            try {
+                playerData.getJSONArray("nick-data").getJSONObject(0);
+            } catch (JSONException e) {
+                JSONArray newNickData = new JSONArray();
+                for (Object nickName : playerData.getJSONArray("nick-data")) {
+                    JSONObject newNickName = new JSONObject(JSONComponentSerializer.json().serialize(PlainTextComponentSerializer.plainText().deserialize((String) nickName)));
+                    newNickData.put(newNickName);
+                }
+                playerData.put("nick-data", newNickData);
+            }
+        }
+    }
+    
     public boolean validateData(String name, String ip){
         boolean repaired = false;
         List<String> itemsRepaired = new ArrayList();
@@ -1318,7 +1451,7 @@ public class PlayerDataObject {
         }
 
         if (!playerData.has("nick")) {
-            playerData.put("nick", "");
+            playerData.put("nick", new JSONObject());
             repaired = true;
             itemsRepaired.add("nick");
         }
@@ -1327,10 +1460,10 @@ public class PlayerDataObject {
             playerData.put("nick-data", new JSONArray());
             repaired = true;
             itemsRepaired.add("nick-data");
-        }
+        } 
         
         if (!playerData.has("tag")) {
-            playerData.put("tag", "");
+            playerData.put("tag", new JSONObject());
             repaired = true;
             itemsRepaired.add("tag");
         }
@@ -1361,6 +1494,7 @@ public class PlayerDataObject {
         if (!itemsRepaired.isEmpty()) {
             LOGGER.log(Level.SEVERE, "Data validation has found malformed player data for {0}({1}) and has repaired the following items: {2}", new Object[]{playerData.getString("name"), PLAYER.toString(), String.join(", ", itemsRepaired)});
         }
+        versionUpdateCheck();
         updatePlayerData();
         return repaired;
     }
