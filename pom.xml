@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.jawasystems</groupId>
     <artifactId>JawaCore</artifactId>
-    <version>1.20.X-0.1</version>
+    <version>1.20.X-0.2</version>
     <packaging>jar</packaging>
     
     <build>
@@ -64,6 +64,16 @@
     </repositories>
     
     <dependencies>
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-text-serializer-legacy</artifactId>
+            <version>4.14.0</version>
+        </dependency>
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-text-serializer-plain</artifactId>
+            <version>4.14.0</version>
+        </dependency>
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
