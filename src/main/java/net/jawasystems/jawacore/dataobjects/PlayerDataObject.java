@@ -940,7 +940,7 @@ public class PlayerDataObject {
     }
 
     /** Returns a colored name ready for sending. If a player doesn't have a
-     * nickname this returns the player's their minecraft name with rank
+     * nickname this returns the player's minecraft name with rank
      * coloring.
      * @return
      */
@@ -952,24 +952,9 @@ public class PlayerDataObject {
         }
     }
 
-//    /**
-//     * Returns a colored name ready for sending. If a player doesn't have a
-//     * nickname this returns the player's their minecraft name with rank
-//     * coloring. This is backed by getFriendlyName()
-//     *
-//     * @return
-//     */
-//    public String getDisplayName() {
-//        return getFriendlyName();
-//    }
-//    
-//    /** Returns a string with legacy color codes for the tag.
-//     * @deprecated use {@link getTagComponent()}
-//     * @return 
-//     */
-//    public String getTag() {
-//        return playerData.getString("tag");
-//    }
+    public TextComponent getDisplayName() {
+        return getStarComponent().append(getTagComponent()).append(getFriendlyName());
+    }
     
     /** Returns a Component for the player's personalized tag.
      * 
@@ -1229,6 +1214,11 @@ public class PlayerDataObject {
         }
     }
 
+    public void sendMessageIf(TextComponent message) {
+        if (isOnline()) {
+            sendMessage(message);
+        }
+    }
     /**
      * Sends a message to the player. This is nothing special, it just saves
      * getting the player from the object first.
@@ -1238,6 +1228,11 @@ public class PlayerDataObject {
     public void sendMessage(String message) {
         getPlayer().sendMessage(message);
     }
+    
+    public void sendMessage(TextComponent message) {
+        getPlayer().sendMessage(message);
+    }
+
 
     /**
      * Sends messages to the player. This is nothing special, it just saves
