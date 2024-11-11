@@ -34,7 +34,7 @@ import org.bukkit.potion.PotionEffectType;
 public class ChunkActivityHandler {
     
     public static void getChunkCoords(Player player){
-        player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, Integer.MAX_VALUE, 30, true, false));
+        player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP_BOOST, Integer.MAX_VALUE, 30, true, false));
 //        player.setg
     }
     
