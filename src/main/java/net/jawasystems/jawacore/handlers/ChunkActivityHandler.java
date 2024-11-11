@@ -24,7 +24,6 @@
 package net.jawasystems.jawacore.handlers;
 
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 

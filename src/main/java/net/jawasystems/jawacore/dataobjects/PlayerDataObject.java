@@ -62,7 +62,7 @@ public class PlayerDataObject {
     private static final Logger LOGGER = Logger.getLogger("PlayerDataObject");
 //    private final HashMap<String,HomeObject> HOMELIST = new HashMap();
     private final UUID PLAYER;
-    public final String DATAVERSION = "v20.X-0.1";
+    public final String DATAVERSION = "v20.X-0.2";
     private Map<String, JSONObject> banData;
     private JSONObject playerData;
     private Map<String, JSONObject> homeData;
@@ -887,11 +887,19 @@ public class PlayerDataObject {
     }
  
     /** Adds a nick and resolves the nick-data attribute for update. Should only
-     * be used with PlayerDataObjects that contain a player's full data.
-     *
-     * @param nick
+     * be used with PlayerDataObjects that contain a player's full data. This is 
+     * backed by buildNewNick(String nick) to convert the string to a text component.
+     * @param nick The plain-text representation of the user's nickname
      */
     public void setNick(String nick) {
+        buildNewNick(nick);
+        updatePlayerDataAsync();
+    }
+    
+    /** Constructs a TextComponent of the user's nickname and converts it to a JSON Object for storage
+     * @param nick The plain-text representation of the user's nickname
+     */
+    private void buildNewNick(String nick){
         //deserialize into a TextComponent
         TextComponent nickName = LegacyComponentSerializer.legacyAmpersand().deserialize(nick);
         //If the nickname isn't empty
@@ -905,14 +913,10 @@ public class PlayerDataObject {
         }
         //Commit the nickname to the player data. Note that if "" is passed as the name an empty TextComponent should be serialized to an empty JSONObject
         playerData.put("nick", JSONComponentSerializer.json().serialize(nickName));
-        updatePlayerDataAsync();
     }
     
-//    public String getNickName() {
-//        return playerData.getString("nick");
-//    }
     /** Return a text component of the player's nickname.
-     * UNLESS doing permitations on a player's nickname you should ALWAYS use{@link #getFriendlyName() getFriendlyName} as this does not
+     * UNLESS doing permutations on a player's nickname you should ALWAYS use{@link #getFriendlyName() getFriendlyName} as this does not
      * deal with a player with no nick name.
      * @return 
      */
@@ -920,11 +924,19 @@ public class PlayerDataObject {
         return (TextComponent) JSONComponentSerializer.json().deserialize(playerData.getJSONObject("nick").toString());
     }
 
-    /** Returns true if a player has a nickname set. false if not.
-     * @return 
+    /** Returns true if a player has a nickname set and that set nickname is an instance of a JSONObject. If it isn't set or the object isn't a JSONObject this returns true.
+     * @return If a valid nickname is set.
      */
     public boolean hasNickName() {
-        return !playerData.getJSONObject("nick").isEmpty();
+        if (playerData.has("nick") && playerData.get("nick") instanceof JSONObject) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+    public boolean hasLegacyNickName() {
+        return (playerData.has("nick") && playerData.get("nick") instanceof String);       
     }
 
     /** Returns a nickname stripped of all color data
@@ -1090,37 +1102,6 @@ public class PlayerDataObject {
         
     }
     
-//    public void repairMalformedData(){
-//        if (playerData.has("rank-data") && (playerData.getJSONObject("rank-data").keySet().contains("rank-data") || playerData.getJSONObject("rank-data").keySet().contains("rank"))){
-//            LOGGER.log(Level.INFO, "Malformed rank-history data has been detected for {0}:{1}. Attempting to fix.", new Object[]{getName(), PLAYER.toString()});
-//            //System.out.println("[PlayerDataObject] Malformed rank-history data has been detected. Attempting to fix.");
-//            //PDO data correction
-//            JSONObject rankData = playerData.getJSONObject("rank-data");
-//            JSONObject tmpRankEntry = rankData.getJSONObject("rank-data");
-//            rankData.remove("rank-data");
-//            String tmpKey = String.valueOf(tmpRankEntry.keySet().toArray()[0]);
-//            rankData.put(tmpKey, tmpRankEntry.getJSONObject(tmpKey));
-//            playerData.remove("rank-data");
-//            playerData.put("rank-data", rankData);
-////            
-////            JSONObject updateRankData = new JSONObject();
-////            updateRankData.put("rank-data", rankData);
-//            
-//            //Database correction
-//            ESHandler.correctMalformedField("rank-data", "players", PLAYER);
-//        }
-//    }
-    
-//    private void verifyPlayerData(){
-//        
-//    }
-//    
-//    private void verifyHomeData(){
-////        if (playerData.has("home-data") && playerData.getJSONObject("home-data").has(JawaCore.getServerName())) {
-////            for (String home : playerData.getJSONObject("home-data").getJSONObject(JawaCore.getServerName()))
-////        }
-//    }
-
     /**
      * Updates a player's logout details when they quit. It removes them from
      * the PlayerManager.

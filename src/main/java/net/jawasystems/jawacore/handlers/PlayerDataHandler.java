@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.UUID;
-import java.util.logging.Logger;
 import net.jawasystems.jawacore.JawaCore;
 import net.jawasystems.jawacore.dataobjects.PlayerDataObject;
 import net.md_5.bungee.api.ChatColor;
